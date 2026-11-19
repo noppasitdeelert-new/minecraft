@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!Number.isFinite(duration) || duration < MIN_MS || duration > MAX_MS) {
       return json({ ok: false }, 400);
     }
-    setDuration(Number(id), duration);
+    await setDuration(Number(id), duration);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

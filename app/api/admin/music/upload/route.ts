@@ -27,8 +27,8 @@ export async function POST(req: Request) {
     const album = String(form.get("album") || "").trim().slice(0, 200) || null;
     const duration = Number(form.get("durationMs") || 0);
 
-    const data = Buffer.from(await file.arrayBuffer());
-    const result = saveUploadedSong(
+    const data = await file.arrayBuffer();
+    const result = await saveUploadedSong(
       data,
       { title, artist, album, mime, durationMs: Number.isFinite(duration) && duration > 0 ? duration : null },
       admin.id,
@@ -36,13 +36,13 @@ export async function POST(req: Request) {
 
     let queued = false;
     try {
-      addToQueue(result.song.id, admin.id);
+      await addToQueue(result.song.id, admin.id);
       queued = true;
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
     }
 
-    logAudit(admin.id, "music.upload", `song:${result.song.id}`, `อัปโหลดเพลง: ${artist} — ${title}`);
+    await     await logAudit(admin.id, "music.upload", `song:${result.song.id}`, `อัปโหลดเพลง: ${artist} — ${title}`);
     return json({ ok: true, song: result.song, created: result.created, queued });
   } catch (error) {
     return fail(error);

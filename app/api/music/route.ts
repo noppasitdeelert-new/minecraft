@@ -10,7 +10,7 @@ export async function GET() {
     const user = await requireUser();
     return json({
       ...musicState(),
-      songs: listSongs(),
+      songs: await listSongs(),
       canManage: canManage(user.role),
       serverTime: new Date().toISOString(),
     });

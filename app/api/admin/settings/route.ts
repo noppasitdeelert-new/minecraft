@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireManager();
-    const config = webhookConfig();
+    const config = await webhookConfig();
     return json({
       discord: config.discord,
       line: config.line,
@@ -16,7 +16,7 @@ export async function GET() {
       envLine: Boolean(process.env.LINE_WEBHOOK_URL),
       jitsi: process.env.JITSI_DOMAIN || "meet.jit.si",
       appUrl: process.env.APP_URL || "http://localhost:3000",
-      seededAdmin: getSetting("seeded") !== null,
+      seededAdmin: await getSetting("seeded") !== null,
     });
   } catch (error) {
     return fail(error);
@@ -27,9 +27,9 @@ export async function PUT(req: Request) {
   try {
     const admin = await requireManager();
     const body = await readJson<{ discord?: string; line?: string }>(req);
-    setSetting("webhook_discord", optionalStr(body.discord, 500));
-    setSetting("webhook_line", optionalStr(body.line, 500));
-    logAudit(admin.id, "settings.webhooks", "settings", "อัปเดต Webhook Discord / LINE");
+    await setSetting("webhook_discord", optionalStr(body.discord, 500));
+    await setSetting("webhook_line", optionalStr(body.line, 500));
+    await logAudit(admin.id, "settings.webhooks", "settings", "อัปเดต Webhook Discord / LINE");
     return json({ ok: true });
   } catch (error) {
     return fail(error);

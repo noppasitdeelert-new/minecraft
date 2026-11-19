@@ -11,7 +11,7 @@ export async function GET() {
   try {
     await requireUser();
 
-    const posts = all<{
+    const posts = await all<{
       id: number;
       title: string;
       body: string;
@@ -31,7 +31,7 @@ export async function GET() {
         LIMIT 100`,
     );
 
-    const answers = all<{
+    const answers = await all<{
       id: number;
       post_id: number;
       body: string;
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     const title = str(body.title, "หัวข้อคำถาม", 160);
     const text = str(body.body, "รายละเอียดคำถาม", 5000);
 
-    const res = run(
+    const res = await run(
       "INSERT INTO qa_posts (user_id, title, body, subject, created_at) VALUES (?, ?, ?, ?, ?)",
       user.id,
       title,
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       optionalStr(body.subject, 80),
       nowIso(),
     );
-    logAudit(user.id, "qa.create", `qa:${res.lastInsertRowid}`, title);
+    await logAudit(user.id, "qa.create", `qa:${res.lastInsertRowid}`, title);
     return json({ ok: true, id: res.lastInsertRowid });
   } catch (error) {
     return fail(error);

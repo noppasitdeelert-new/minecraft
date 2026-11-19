@@ -1,6 +1,6 @@
-import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { one, run, nowIso } from "./db";
+import { randomHex } from "./crypto";
 import { ApiError } from "./api";
 import type { Role, UserStatus } from "./labels";
 
@@ -31,13 +31,13 @@ export function canModerate(role: Role | string | undefined): boolean {
 }
 
 function sessionId(): string {
-  return crypto.randomBytes(32).toString("hex");
+  return randomHex(32);
 }
 
 export async function createSession(userId: number, userAgent?: string | null): Promise<string> {
   const id = sessionId();
   const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
-  run(
+  await run(
     "INSERT INTO sessions (id, user_id, user_agent, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
     id,
     userId,
@@ -59,7 +59,7 @@ export async function createSession(userId: number, userAgent?: string | null): 
 export async function destroySession(): Promise<void> {
   const store = await cookies();
   const id = store.get(SESSION_COOKIE)?.value;
-  if (id) run("DELETE FROM sessions WHERE id = ?", id);
+  if (id) await run("DELETE FROM sessions WHERE id = ?", id);
   store.delete(SESSION_COOKIE);
 }
 
@@ -73,7 +73,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
   if (!id) return null;
 
-  const user = one<SessionUser>(
+  const user = await one<SessionUser>(
     `SELECT u.id, u.email, u.real_name, u.nickname, u.role, u.status, u.avatar_color, u.created_at, u.last_login_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND s.expires_at > ?`,

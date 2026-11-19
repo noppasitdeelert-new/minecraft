@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const body = await readJson<{ song_id?: number }>(req);
     const songId = Number(body.song_id);
     if (!Number.isInteger(songId) || songId <= 0) throw new ApiError(400, "เพลงไม่ถูกต้อง");
-    const queueId = addToQueue(songId, user.id);
+    const queueId = await addToQueue(songId, user.id);
     return json({ ok: true, queue_id: queueId });
   } catch (error) {
     return fail(error);
@@ -23,7 +23,7 @@ export async function DELETE(req: Request) {
   try {
     const user = await requireUser();
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const item = one<{ id: number; added_by: number | null; status: string }>(
+    const item = await one<{ id: number; added_by: number | null; status: string }>(
       "SELECT id, added_by, status FROM music_queue WHERE id = ?",
       id,
     );
@@ -32,7 +32,7 @@ export async function DELETE(req: Request) {
       throw new ApiError(403, "ลบได้เฉพาะเพลงที่ตัวเองเพิ่ม หรือให้แอดมินลบให้");
     }
     if (item.status === "playing") throw new ApiError(400, "เพลงที่กำลังเล่นอยู่ใช้ปุ่ม “ข้ามเพลง” แทน");
-    run("DELETE FROM music_queue WHERE id = ?", id);
+    await run("DELETE FROM music_queue WHERE id = ?", id);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

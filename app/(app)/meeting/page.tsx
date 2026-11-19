@@ -26,7 +26,7 @@ type Row = {
 export default async function MeetingPage() {
   const user = await requireUser();
 
-  const rows = all<Row>(
+  const rows = await all<Row>(
     `SELECT m.id, m.title, m.agenda, m.room_code, m.starts_at, m.status, m.notes, m.created_at,
             u.id AS host_id, u.nickname, u.real_name, u.role, u.avatar_color,
             (SELECT COUNT(*) FROM meeting_participants p WHERE p.meeting_id = m.id) AS participant_count

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireUser();
-    const channels = all<{
+    const channels = await all<{
       id: number;
       slug: string;
       name: string;

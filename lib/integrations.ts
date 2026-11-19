@@ -1,17 +1,22 @@
-import crypto from "node:crypto";
 import { all, one, run } from "./db";
+import { randomHex, sha256Hex } from "./crypto";
 
-export function getSetting(key: string): string | null {
-  const row = one<{ value: string | null }>("SELECT value FROM settings WHERE key = ?", key);
+export async function getSetting(key: string): Promise<string | null> {
+  const row = await one<{ value: string | null }>("SELECT value FROM settings WHERE key = ?", key);
   return row?.value ?? null;
 }
 
-export function setSetting(key: string, value: string | null): void {
-  run("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value);
+export async function setSetting(key: string, value: string | null): Promise<void> {
+  await run("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value);
 }
 
-export function logAudit(actorId: number | null, action: string, target?: string | null, detail?: string | null): void {
-  run(
+export async function logAudit(
+  actorId: number | null,
+  action: string,
+  target?: string | null,
+  detail?: string | null,
+): Promise<void> {
+  await run(
     "INSERT INTO audit_logs (actor_id, action, target, detail, created_at) VALUES (?, ?, ?, ?, ?)",
     actorId,
     action,
@@ -40,7 +45,7 @@ export type WebhookRow = {
   last_sent_at: string | null;
 };
 
-export function listWebhooks(): WebhookRow[] {
+export function listWebhooks(): Promise<WebhookRow[]> {
   return all<WebhookRow>(
     "SELECT id, name, kind, url, secret, enabled, created_at, last_status, last_sent_at FROM webhooks ORDER BY id DESC",
   );
@@ -56,27 +61,27 @@ export type ApiKeyRow = {
   revoked_at: string | null;
 };
 
-export function listApiKeys(): ApiKeyRow[] {
+export function listApiKeys(): Promise<ApiKeyRow[]> {
   return all<ApiKeyRow>(
     "SELECT id, name, prefix, enabled, created_at, last_used_at, revoked_at FROM api_keys ORDER BY id DESC",
   );
 }
 
-export function hashApiKey(key: string): string {
-  return crypto.createHash("sha256").update(key).digest("hex");
+export function hashApiKey(key: string): Promise<string> {
+  return sha256Hex(key);
 }
 
-export function generateApiKey(): { key: string; prefix: string; hash: string } {
-  const key = `skc_${crypto.randomBytes(24).toString("hex")}`;
-  return { key, prefix: key.slice(0, 12), hash: hashApiKey(key) };
+export async function generateApiKey(): Promise<{ key: string; prefix: string; hash: string }> {
+  const key = `skc_${randomHex(24)}`;
+  return { key, prefix: key.slice(0, 12), hash: await hashApiKey(key) };
 }
 
 /** Resolve a bearer token to an active API key record. */
-export function resolveApiKey(token: string | null): ApiKeyRow | null {
+export async function resolveApiKey(token: string | null): Promise<ApiKeyRow | null> {
   if (!token) return null;
-  const row = one<ApiKeyRow>(
+  const row = await one<ApiKeyRow>(
     "SELECT id, name, prefix, enabled, created_at, last_used_at, revoked_at FROM api_keys WHERE key_hash = ?",
-    hashApiKey(token),
+    await hashApiKey(token),
   );
   if (!row || !row.enabled || row.revoked_at) return null;
   return row;
@@ -125,16 +130,13 @@ async function deliver(kind: string, url: string, secret: string | null, message
 
 /** Send a notification to every enabled webhook (plus legacy env/settings URLs). Never throws. */
 export async function notifyChannels(message: string): Promise<{ sent: number; failed: number }> {
-  const rows = listWebhooks().filter((w) => w.enabled === 1);
-  const targets: Array<{ id: number | null; kind: string; url: string; secret: string | null }> = rows.map((w) => ({
-    id: w.id,
-    kind: w.kind,
-    url: w.url,
-    secret: w.secret,
-  }));
+  const rows = await listWebhooks();
+  const targets: Array<{ id: number | null; kind: string; url: string; secret: string | null }> = rows
+    .filter((w) => w.enabled === 1)
+    .map((w) => ({ id: w.id, kind: w.kind, url: w.url, secret: w.secret }));
 
-  const legacyDiscord = getSetting("webhook_discord") || process.env.DISCORD_WEBHOOK_URL || "";
-  const legacyLine = getSetting("webhook_line") || process.env.LINE_WEBHOOK_URL || "";
+  const legacyDiscord = (await getSetting("webhook_discord")) || process.env.DISCORD_WEBHOOK_URL || "";
+  const legacyLine = (await getSetting("webhook_line")) || process.env.LINE_WEBHOOK_URL || "";
   if (legacyDiscord) targets.push({ id: null, kind: "discord", url: legacyDiscord, secret: null });
   if (legacyLine) targets.push({ id: null, kind: "line", url: legacyLine, secret: null });
 
@@ -148,7 +150,7 @@ export async function notifyChannels(message: string): Promise<{ sent: number; f
       if (result.ok) sent += 1;
       else failed += 1;
       if (target.id !== null) {
-        run(
+        await run(
           "UPDATE webhooks SET last_status = ?, last_sent_at = ? WHERE id = ?",
           result.status,
           new Date().toISOString(),
@@ -161,9 +163,9 @@ export async function notifyChannels(message: string): Promise<{ sent: number; f
 }
 
 /** Legacy single-webhook accessor kept for the settings tab. */
-export function webhookConfig(): { discord: string; line: string } {
+export async function webhookConfig(): Promise<{ discord: string; line: string }> {
   return {
-    discord: getSetting("webhook_discord") ?? "",
-    line: getSetting("webhook_line") ?? "",
+    discord: (await getSetting("webhook_discord")) ?? "",
+    line: (await getSetting("webhook_line")) ?? "",
   };
 }

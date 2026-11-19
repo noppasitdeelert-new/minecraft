@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function ChatPage() {
   const user = await requireUser();
 
-  const channels = all<Channel>(
+  const channels = await all<Channel>(
     `SELECT c.id, c.slug, c.name, c.description, c.icon, c.sort_order,
             (SELECT COUNT(*) FROM messages m WHERE m.channel_id = c.id) AS message_count
        FROM channels c ORDER BY c.sort_order, c.id`,

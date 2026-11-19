@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { ApiError, fail, json, optionalStr, readJson, str } from "@/lib/api";
+import { randomHex } from "@/lib/crypto";
 import { all, run, nowIso, one } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireUser();
-    const meetings = all<{
+    const meetings = await all<{
       id: number;
       title: string;
       agenda: string | null;
@@ -53,8 +53,8 @@ export async function POST(req: Request) {
     const startsAt = startsRaw ? new Date(startsRaw) : new Date();
     if (Number.isNaN(startsAt.getTime())) throw new ApiError(400, "วันเวลาประชุมไม่ถูกต้อง");
 
-    const roomCode = `skc105-${crypto.randomBytes(4).toString("hex")}`;
-    const res = run(
+    const roomCode = `skc105-${randomHex(4)}`;
+    const res = await run(
       "INSERT INTO meetings (title, agenda, room_code, starts_at, status, created_by, created_at) VALUES (?, ?, ?, ?, 'scheduled', ?, ?)",
       title,
       agenda,
@@ -64,9 +64,9 @@ export async function POST(req: Request) {
       nowIso(),
     );
 
-    logAudit(user.id, "meeting.create", `meeting:${res.lastInsertRowid}`, title);
+    await logAudit(user.id, "meeting.create", `meeting:${res.lastInsertRowid}`, title);
     void notifyChannels(`🎥 เปิดห้องประชุมใหม่: **${title}** โดย ${user.nickname}`);
-    const created = one("SELECT * FROM meetings WHERE id = ?", res.lastInsertRowid);
+    const created = await one("SELECT * FROM meetings WHERE id = ?", res.lastInsertRowid);
     return json({ meeting: created });
   } catch (error) {
     return fail(error);

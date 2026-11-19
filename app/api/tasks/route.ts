@@ -62,7 +62,7 @@ function shape(r: Row): Task {
 export async function GET() {
   try {
     const user = await requireUser();
-    const rows = all<Row>(`${SELECT} ORDER BY (ts.status = 'done') ASC, COALESCE(t.due_date, '9999-12-31') ASC, t.id DESC`, user.id);
+    const rows = await all<Row>(`${SELECT} ORDER BY (ts.status = 'done') ASC, COALESCE(t.due_date, '9999-12-31') ASC, t.id DESC`, user.id);
     return json({ tasks: rows.map(shape) });
   } catch (error) {
     return fail(error);
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     const dueDate = dueRaw ? dueRaw.slice(0, 10) : null;
     if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) throw new ApiError(400, "วันครบกำหนดไม่ถูกต้อง");
 
-    const res = run(
+    const res = await run(
       "INSERT INTO tasks (subject, title, description, due_date, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       subject,
       title,
@@ -89,12 +89,12 @@ export async function POST(req: Request) {
       user.id,
       nowIso(),
     );
-    logAudit(user.id, "task.create", `task:${res.lastInsertRowid}`, `${subject}: ${title}`);
+    await logAudit(user.id, "task.create", `task:${res.lastInsertRowid}`, `${subject}: ${title}`);
     void notifyChannels(
       `📚 การบ้านใหม่ (${subject}): **${title}**${dueDate ? `\nกำหนดส่ง ${dueDate}` : ""}\nเพิ่มโดย ${user.nickname}`,
     );
 
-    const row = one<Row>(`${SELECT} WHERE t.id = ?`, user.id, res.lastInsertRowid);
+    const row = await one<Row>(`${SELECT} WHERE t.id = ?`, user.id, res.lastInsertRowid);
     return json({ task: row ? shape(row) : null });
   } catch (error) {
     return fail(error);
@@ -110,10 +110,10 @@ export async function PATCH(req: Request) {
     if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, "ไม่พบงานที่ต้องการอัปเดต");
     if (!["todo", "doing", "done"].includes(status)) throw new ApiError(400, "สถานะไม่ถูกต้อง");
 
-    const task = one<{ id: number; title: string }>("SELECT id, title FROM tasks WHERE id = ?", id);
+    const task = await one<{ id: number; title: string }>("SELECT id, title FROM tasks WHERE id = ?", id);
     if (!task) throw new ApiError(404, "ไม่พบงานนี้");
 
-    run(
+    await run(
       `INSERT INTO task_status (task_id, user_id, status, updated_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(task_id, user_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at`,
       id,
@@ -131,11 +131,11 @@ export async function DELETE(req: Request) {
   try {
     const user = await requireUser();
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const task = one<{ created_by: number; title: string }>("SELECT created_by, title FROM tasks WHERE id = ?", id);
+    const task = await one<{ created_by: number; title: string }>("SELECT created_by, title FROM tasks WHERE id = ?", id);
     if (!task) throw new ApiError(404, "ไม่พบงานนี้");
     if (task.created_by !== user.id && !canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบงานนี้");
-    run("DELETE FROM tasks WHERE id = ?", id);
-    logAudit(user.id, "task.delete", `task:${id}`, task.title);
+    await run("DELETE FROM tasks WHERE id = ?", id);
+    await logAudit(user.id, "task.delete", `task:${id}`, task.title);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

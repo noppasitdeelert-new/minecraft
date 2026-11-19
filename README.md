@@ -10,17 +10,17 @@ UI ภาษาไทย ธีมมืดทันสมัย (indigo/violet 
 
 | ส่วน | เทคโนโลยี |
 | --- | --- |
-| Frontend + Backend | Next.js 15 (App Router, React 19, Server Components + Route Handlers) |
-| ฐานข้อมูล | SQLite ผ่าน `node:sqlite` (built-in ของ Node.js — ไม่ต้องติดตั้ง native module) |
+| Frontend + Backend | Next.js 16 (App Router, React 19, Server Components + Route Handlers) |
+| ฐานข้อมูล | Cloudflare **D1** (SQLite แบบ managed) ผ่าน binding `DB` — schema/seed สร้างอัตโนมัติเมื่อเรียกครั้งแรก |
 | Styling | Tailwind CSS v4 |
-| รหัสผ่าน | `scrypt` + salt สุ่ม (64-byte hash) เก็บเฉพาะค่าแฮช |
+| รหัสผ่าน | `PBKDF2-SHA256` (100,000 รอบ) ผ่าน WebCrypto + salt สุ่ม เก็บเฉพาะค่าแฮช |
 | Session | HttpOnly cookie + ตาราง `sessions` (token สุ่ม 32 bytes, อายุ 30 วัน) |
 | ห้องประชุม | Jitsi Meet ผ่าน iframe + presence/ยกมือ/แชต/โน้ตของระบบเอง |
-| เพลง | ดาวน์โหลด **เพลงเต็ม** จาก Audius / Internet Archive / อัปโหลดไฟล์เอง / ลิงก์ตรง เก็บใน `data/music`, มินิเพลเยอร์เล่นต่อเนื่องทุกหน้า (ยกเว้นห้องประชุม) |
+| เพลง | ดาวน์โหลด **เพลงเต็ม** จาก Audius / Internet Archive / อัปโหลดไฟล์เอง / ลิงก์ตรง เก็บใน **R2** (binding `FILES`), มินิเพลเยอร์เล่นต่อเนื่องทุกหน้า (ยกเว้นห้องประชุม) |
 | Realtime | Polling (แชต 3 วิ, ประชุม 4 วิ, เพลง 6 วิ) — ทำงานได้ทุกโฮสต์โดยไม่ต้องเปิด WebSocket |
 | แจ้งเตือน | Webhook (Discord / LINE Notify / JSON) สูงสุด 50 รายการ + API Key สำหรับเรียกจากภายนอก + Browser Notification |
 
-> ต้องใช้ **Node.js 22 ขึ้นไป** (แนะนำ 22/24/26) เพราะใช้ `node:sqlite`
+> รันได้ทั้งบน **Cloudflare Workers (Freebuff Sites)** และในเครื่องด้วย `wrangler dev` ซึ่งจำลอง D1/R2 ให้อัตโนมัติ (ต้องใช้ Node.js 20 ขึ้นไปสำหรับเครื่องมือ build)
 
 ---
 
@@ -123,8 +123,6 @@ cp .env.example .env   # แล้วแก้ค่า
 
 | ตัวแปร | จำเป็น | ความหมาย |
 | --- | --- | --- |
-| `DATABASE_PATH` | – | ที่เก็บไฟล์ SQLite (ค่าเริ่มต้น `./data/skc105.db`) |
-| `MUSIC_DIR` | – | โฟลเดอร์เก็บไฟล์เพลง (ค่าเริ่มต้น `./data/music`) |
 | `SESSION_SECRET` | ✔ | ความลับของระบบ — สร้างด้วย `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `APP_URL` | – | URL จริงของเว็บ เช่น `https://skc105.example.com` |
 | `ADMIN_EMAIL` | ✔ | อีเมลแอดมินสูงสุด |
@@ -168,7 +166,7 @@ cp .env.example .env   # แล้วแก้ค่า
 3. **อัปโหลดไฟล์จากเครื่อง** — mp3 / m4a / ogg / wav / flac สูงสุด 60 MB (ใช้ไฟล์ที่คุณมีสิทธิ์)
 4. **นำเข้าจากลิงก์ตรง** — URL ไฟล์เสียงที่คุณมีสิทธิ์
 
-ขั้นตอน: ค้นหา → กด “ฟังเต็มเพลง” → “ดาวน์โหลดเข้าคิว” ระบบจะดาวน์โหลดไฟล์เต็มเก็บใน `data/music` แล้วเข้าคิวทันที
+ขั้นตอน: ค้นหา → กด “ฟังเต็มเพลง” → “ดาวน์โหลดเข้าคิว” ระบบจะดาวน์โหลดไฟล์เต็มเก็บลง R2 แล้วเข้าคิวทันที
 
 **การเล่น:** มินิเพลเยอร์ลอยอยู่มุมล่างของ**ทุกหน้า**และเล่นต่อเนื่องเมื่อเปลี่ยนหน้า — ยกเว้นหน้า `/meeting` ที่จะหยุดชั่วคราวและกลับมาเล่นต่อเมื่อออกจากห้องประชุม ทุกเครื่องเล่นเพลงเดียวกันตามเวลากลางของเซิร์ฟเวอร์ (หน้า `/music` มีคิวและคลังเพลงเต็มรูปแบบ)
 
@@ -181,14 +179,14 @@ cp .env.example .env   # แล้วแก้ค่า
 ```bash
 npm install          # ติดตั้ง dependencies
 cp .env.example .env # แล้วแก้ค่าอย่างน้อย SESSION_SECRET + ADMIN_*
-npm run dev          # โหมดพัฒนา → http://localhost:3000
+npx wrangler dev --config freebuff.wrangler.jsonc --port 8787   # โหมดพัฒนา (D1/R2 จำลองในเครื่อง) → http://localhost:8787
 ```
 
 โปรดักชัน:
 
 ```bash
-npm run build
-npm start            # ต้องรันเป็น Node server (SQLite + ไฟล์เพลงต้องมีดิสก์ถาวร)
+npm run build        # build ฝั่ง Next.js
+npm start            # รันเป็น Node server (ต้องมี D1/R2 ให้เชื่อม — ปกติใช้ deploy ขึ้น Sites แทน)
 ```
 
 ตรวจชนิดข้อมูล: `npm run typecheck`
@@ -203,7 +201,7 @@ npm start            # ต้องรันเป็น Node server (SQLite + �
 3. ระบบตรวจคีย์/อีเมลซ้ำ → **`DELETE FROM invite_keys`** ก่อนสร้างบัญชี (ถ้าสร้างบัญชีไม่สำเร็จจะคืนคีย์ให้อัตโนมัติ) → ล็อกอินทันที + บันทึก Audit Log
 
 ### ล็อกอิน
-- `POST /api/auth/login` → ตรวจอีเมล + รหัสผ่านด้วย `scrypt` แบบ timing-safe → สร้าง session cookie (30 วัน)
+- `POST /api/auth/login` → ตรวจอีเมล + รหัสผ่านด้วย PBKDF2 แบบ timing-safe → สร้าง session cookie (30 วัน)
 - บัญชีที่ถูกระงับจะถูกตัด session ทั้งหมดและล็อกอินไม่ได้
 
 ### ห้องประชุม
@@ -231,10 +229,10 @@ npm start            # ต้องรันเป็น Node server (SQLite + �
 ## 8. หมายเหตุความปลอดภัย & การดีพลอย
 
 - Session เป็น HttpOnly + SameSite=Lax, `secure` อัตโนมัติเมื่อ `NODE_ENV=production`
-- รหัสผ่านเก็บเป็น scrypt hash พร้อม salt ไม่เก็บ plaintext; API Key เก็บเฉพาะ SHA-256
-- URL ที่อนุญาตให้ดาวน์โหลดเพลงจำกัดเฉพาะโดเมนของ Apple (`*.apple.com`, `*.mzstatic.com`) และไฟล์สูงสุด 8 MB
+- รหัสผ่านเก็บเป็น PBKDF2-SHA256 hash พร้อม salt ไม่เก็บ plaintext; API Key เก็บเฉพาะ SHA-256
+- ลิงก์นำเข้าเพลงต้องเป็น https เท่านั้น, บล็อกที่อยู่ภายใน/LAN และจำกัดไฟล์สูงสุด 60 MB ต่อเพลง
 - ทุก endpoint ตรวจสิทธิ์ฝั่งเซิร์ฟเวอร์ (ไม่เชื่อ role ที่ส่งมาจาก client)
 - รูปแกลเลอรีถูกย่อขนาดในเบราว์เซอร์ก่อนอัปโหลด เก็บเป็น data URL (จำกัด ~2 MB/รูป)
-- **การดีพลอย**: ต้องเป็น Node server ที่มี persistent disk (SQLite + ไฟล์เพลง) เช่น VPS/Docker/Render/Railway — serverless แบบ stateless ไม่เหมาะ
+- **การดีพลอย**: ดีพลอยบน **Freebuff Sites (Cloudflare Workers)** แล้ว — Worker เสิร์ฟ Next.js ผ่าน OpenNext, ฐานข้อมูลอยู่บน D1, ไฟล์เพลงอยู่บน R2 (ไม่ต้องมีดิสก์ถาวร)
 - แนะนำวาง Nginx/Caddy ทำ HTTPS ด้านหน้า แล้วตั้ง `APP_URL` ให้ตรงโดเมนจริง
-- สำรองข้อมูล = คัดลอก `data/skc105.db` (และ `-wal`, `-shm`) พร้อมโฟลเดอร์ `data/music/`
+- สำรองข้อมูล = export D1 (`wrangler d1 export`) และคัดลอกออบเจกต์ใน bucket R2 `FILES`

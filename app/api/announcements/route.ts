@@ -46,7 +46,7 @@ function shape(row: Row): Announcement {
 export async function GET() {
   try {
     await requireUser();
-    const rows = all<Row>(`${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT 50`);
+    const rows = await all<Row>(`${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT 50`);
     return json({ announcements: rows.map(shape) });
   } catch (error) {
     return fail(error);
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     const important = body.important ? 1 : 0;
     const now = nowIso();
 
-    const res = run(
+    const res = await run(
       "INSERT INTO announcements (author_id, title, body, pinned, important, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       user.id,
       title,
@@ -76,12 +76,12 @@ export async function POST(req: Request) {
       now,
     );
 
-    logAudit(user.id, "announcement.create", `announcement:${res.lastInsertRowid}`, title);
+    await logAudit(user.id, "announcement.create", `announcement:${res.lastInsertRowid}`, title);
     if (important || pinned) {
       void notifyChannels(`📢 ประกาศใหม่จาก ${user.nickname}: **${title}**\n${text.slice(0, 1200)}`);
     }
 
-    const row = one<Row>(`${SELECT} WHERE a.id = ?`, res.lastInsertRowid);
+    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, res.lastInsertRowid);
     return json({ announcement: row ? shape(row) : null });
   } catch (error) {
     return fail(error);
@@ -96,17 +96,17 @@ export async function PATCH(req: Request) {
     const body = await readJson<{ id?: number; pinned?: boolean; important?: boolean; title?: string; body?: string }>(req);
     const id = Number(body.id);
     if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, "ไม่พบประกาศที่ต้องการแก้ไข");
-    const existing = one<{ title: string }>("SELECT title FROM announcements WHERE id = ?", id);
+    const existing = await one<{ title: string }>("SELECT title FROM announcements WHERE id = ?", id);
     if (!existing) throw new ApiError(404, "ไม่พบประกาศนี้");
 
-    if (typeof body.pinned === "boolean") run("UPDATE announcements SET pinned = ?, updated_at = ? WHERE id = ?", body.pinned ? 1 : 0, nowIso(), id);
+    if (typeof body.pinned === "boolean") await run("UPDATE announcements SET pinned = ?, updated_at = ? WHERE id = ?", body.pinned ? 1 : 0, nowIso(), id);
     if (typeof body.important === "boolean")
-      run("UPDATE announcements SET important = ?, updated_at = ? WHERE id = ?", body.important ? 1 : 0, nowIso(), id);
-    if (typeof body.title === "string") run("UPDATE announcements SET title = ?, updated_at = ? WHERE id = ?", str(body.title, "หัวข้อ", 140), nowIso(), id);
-    if (typeof body.body === "string") run("UPDATE announcements SET body = ?, updated_at = ? WHERE id = ?", str(body.body, "เนื้อหา", 8000), nowIso(), id);
+      await run("UPDATE announcements SET important = ?, updated_at = ? WHERE id = ?", body.important ? 1 : 0, nowIso(), id);
+    if (typeof body.title === "string") await run("UPDATE announcements SET title = ?, updated_at = ? WHERE id = ?", str(body.title, "หัวข้อ", 140), nowIso(), id);
+    if (typeof body.body === "string") await run("UPDATE announcements SET body = ?, updated_at = ? WHERE id = ?", str(body.body, "เนื้อหา", 8000), nowIso(), id);
 
-    logAudit(user.id, "announcement.update", `announcement:${id}`, optionalStr(body.title, 140) ?? existing.title);
-    const row = one<Row>(`${SELECT} WHERE a.id = ?`, id);
+    await logAudit(user.id, "announcement.update", `announcement:${id}`, optionalStr(body.title, 140) ?? existing.title);
+    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, id);
     return json({ announcement: row ? shape(row) : null });
   } catch (error) {
     return fail(error);
@@ -118,10 +118,10 @@ export async function DELETE(req: Request) {
     const user = await requireUser();
     if (!canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบประกาศ");
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const existing = one<{ title: string }>("SELECT title FROM announcements WHERE id = ?", id);
+    const existing = await one<{ title: string }>("SELECT title FROM announcements WHERE id = ?", id);
     if (!existing) throw new ApiError(404, "ไม่พบประกาศนี้");
-    run("DELETE FROM announcements WHERE id = ?", id);
-    logAudit(user.id, "announcement.delete", `announcement:${id}`, existing.title);
+    await run("DELETE FROM announcements WHERE id = ?", id);
+    await logAudit(user.id, "announcement.delete", `announcement:${id}`, existing.title);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

@@ -13,13 +13,13 @@ export async function POST(req: Request) {
   try {
     const header = req.headers.get("authorization") || "";
     const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-    const key = resolveApiKey(token);
+    const key = await resolveApiKey(token);
     if (!key) throw new ApiError(401, "API Key ไม่ถูกต้องหรือถูกเพิกถอนแล้ว");
 
     const body = await readJson<{ message?: string }>(req);
     const message = str(body.message, "ข้อความ", 1800);
 
-    run("UPDATE api_keys SET last_used_at = ? WHERE id = ?", nowIso(), key.id);
+    await run("UPDATE api_keys SET last_used_at = ? WHERE id = ?", nowIso(), key.id);
     const result = await notifyChannels(message);
     return json({ ok: true, message, ...result });
   } catch (error) {

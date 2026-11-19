@@ -22,12 +22,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   try {
     await requireUser();
     const id = intParam((await ctx.params).id, "meetingId");
-    const meeting = one<MeetingRow>("SELECT * FROM meetings WHERE id = ?", id);
+    const meeting = await one<MeetingRow>("SELECT * FROM meetings WHERE id = ?", id);
     if (!meeting) throw new ApiError(404, "ไม่พบห้องประชุมนี้");
 
     const after = Number(new URL(req.url).searchParams.get("afterMessage") || 0);
 
-    const participants = all<{
+    const participants = await all<{
       user_id: number;
       nickname: string;
       role: string;
@@ -43,7 +43,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       id,
     );
 
-    const messages = all<{
+    const messages = await all<{
       id: number;
       body: string;
       created_at: string;
@@ -70,7 +70,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const user = await requireUser();
     const id = intParam((await ctx.params).id, "meetingId");
-    const meeting = one<MeetingRow>("SELECT * FROM meetings WHERE id = ?", id);
+    const meeting = await one<MeetingRow>("SELECT * FROM meetings WHERE id = ?", id);
     if (!meeting) throw new ApiError(404, "ไม่พบห้องประชุมนี้");
 
     const body = await readJson<{
@@ -83,7 +83,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     switch (body.action) {
       case "join": {
-        run(
+        await run(
           `INSERT INTO meeting_participants (meeting_id, user_id, hand_raised, joined_at, last_seen)
            VALUES (?, ?, 0, ?, ?)
            ON CONFLICT(meeting_id, user_id) DO UPDATE SET last_seen = excluded.last_seen`,
@@ -95,13 +95,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         return json({ ok: true });
       }
       case "leave": {
-        run("DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id = ?", id, user.id);
+        await run("DELETE FROM meeting_participants WHERE meeting_id = ? AND user_id = ?", id, user.id);
         return json({ ok: true });
       }
       case "hand": {
         const raised = body.raised ? 1 : 0;
-        run("UPDATE meeting_participants SET hand_raised = ? WHERE meeting_id = ? AND user_id = ?", raised, id, user.id);
-        run(
+        await run("UPDATE meeting_participants SET hand_raised = ? WHERE meeting_id = ? AND user_id = ?", raised, id, user.id);
+        await run(
           `INSERT INTO meeting_participants (meeting_id, user_id, hand_raised, joined_at, last_seen)
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(meeting_id, user_id) DO UPDATE SET hand_raised = excluded.hand_raised, last_seen = excluded.last_seen`,
@@ -117,28 +117,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         if (!canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์เปลี่ยนสถานะการประชุม");
         const status = String(body.status || "");
         if (!["scheduled", "live", "ended"].includes(status)) throw new ApiError(400, "สถานะไม่ถูกต้อง");
-        run("UPDATE meetings SET status = ? WHERE id = ?", status, id);
-        logAudit(user.id, "meeting.status", `meeting:${id}`, status);
+        await run("UPDATE meetings SET status = ? WHERE id = ?", status, id);
+        await logAudit(user.id, "meeting.status", `meeting:${id}`, status);
         return json({ ok: true, status });
       }
       case "notes": {
         const notes = optionalStr(body.notes, 20000) ?? "";
         if (!canModerate(user.role) && meeting.created_by !== user.id)
           throw new ApiError(403, "เฉพาะผู้สร้างหรือแอดมินเท่านั้นที่แก้บันทึกการประชุมได้");
-        run("UPDATE meetings SET notes = ? WHERE id = ?", notes, id);
-        logAudit(user.id, "meeting.notes", `meeting:${id}`, "อัปเดตบันทึกการประชุม");
+        await run("UPDATE meetings SET notes = ? WHERE id = ?", notes, id);
+        await logAudit(user.id, "meeting.notes", `meeting:${id}`, "อัปเดตบันทึกการประชุม");
         return json({ ok: true, notes });
       }
       case "message": {
         const text = str(body.body, "ข้อความ", 1000);
-        const res = run(
+        const res = await run(
           "INSERT INTO meeting_messages (meeting_id, user_id, body, created_at) VALUES (?, ?, ?, ?)",
           id,
           user.id,
           text,
           nowIso(),
         );
-        const message = one(
+        const message = await one(
           `SELECT mm.id, mm.body, mm.created_at, u.id AS user_id, u.nickname, u.role, u.avatar_color
              FROM meeting_messages mm JOIN users u ON u.id = mm.user_id WHERE mm.id = ?`,
           res.lastInsertRowid,

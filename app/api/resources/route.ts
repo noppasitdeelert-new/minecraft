@@ -42,7 +42,7 @@ function shape(r: Row): Resource {
 export async function GET() {
   try {
     await requireUser();
-    const rows = all<Row>(`${SELECT} ORDER BY r.created_at DESC LIMIT 200`);
+    const rows = await all<Row>(`${SELECT} ORDER BY r.created_at DESC LIMIT 200`);
     return json({ resources: rows.map(shape) });
   } catch (error) {
     return fail(error);
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     if (!/^https?:\/\/.+/i.test(url) && !url.startsWith("/")) throw new ApiError(400, "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://");
     const category = ["sheet", "exam", "slide", "video", "other"].includes(String(body.category)) ? String(body.category) : "other";
 
-    const res = run(
+    const res = await run(
       "INSERT INTO resources (title, description, url, category, subject, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       title,
       optionalStr(body.description, 1000),
@@ -68,8 +68,8 @@ export async function POST(req: Request) {
       user.id,
       nowIso(),
     );
-    logAudit(user.id, "resource.create", `resource:${res.lastInsertRowid}`, title);
-    const row = one<Row>(`${SELECT} WHERE r.id = ?`, res.lastInsertRowid);
+    await logAudit(user.id, "resource.create", `resource:${res.lastInsertRowid}`, title);
+    const row = await one<Row>(`${SELECT} WHERE r.id = ?`, res.lastInsertRowid);
     return json({ resource: row ? shape(row) : null });
   } catch (error) {
     return fail(error);
@@ -80,11 +80,11 @@ export async function DELETE(req: Request) {
   try {
     const user = await requireUser();
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const row = one<{ created_by: number; title: string }>("SELECT created_by, title FROM resources WHERE id = ?", id);
+    const row = await one<{ created_by: number; title: string }>("SELECT created_by, title FROM resources WHERE id = ?", id);
     if (!row) throw new ApiError(404, "ไม่พบไฟล์นี้");
     if (row.created_by !== user.id && !canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบไฟล์นี้");
-    run("DELETE FROM resources WHERE id = ?", id);
-    logAudit(user.id, "resource.delete", `resource:${id}`, row.title);
+    await run("DELETE FROM resources WHERE id = ?", id);
+    await logAudit(user.id, "resource.delete", `resource:${id}`, row.title);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

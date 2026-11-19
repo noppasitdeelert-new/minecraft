@@ -1,5 +1,5 @@
 import { ApiError, fail, json, readJson, str } from "@/lib/api";
-import { one, run, nowIso, randomAvatarColor, hashPassword, db } from "@/lib/db";
+import { one, run, nowIso, randomAvatarColor, hashPassword } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
 
@@ -37,25 +37,25 @@ export async function POST(req: Request) {
       throw new ApiError(400, "รหัสผ่านทั้งสองช่องไม่ตรงกัน");
     }
 
-    const invite = one<{ id: number; used_at: string | null }>("SELECT id, used_at FROM invite_keys WHERE code = ?", key);
+    const invite = await one<{ id: number; used_at: string | null }>("SELECT id, used_at FROM invite_keys WHERE code = ?", key);
     if (!invite) throw new ApiError(400, "คีย์ห้องไม่ถูกต้อง หรือถูกใช้ไปแล้ว");
     if (invite.used_at) throw new ApiError(400, "คีย์ห้องนี้ถูกใช้สมัครไปแล้ว กรุณาขอคีย์ใหม่จากแอดมิน");
 
-    const existing = one<{ id: number }>("SELECT id FROM users WHERE email = ?", email);
+    const existing = await one<{ id: number }>("SELECT id FROM users WHERE email = ?", email);
     if (existing) throw new ApiError(409, "อีเมลนี้มีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบแทน");
 
     // Single-use guarantee: remove the key before the account row is written.
-    const removed = run("DELETE FROM invite_keys WHERE code = ? AND used_at IS NULL", key);
+    const removed = await run("DELETE FROM invite_keys WHERE code = ? AND used_at IS NULL", key);
     if (removed.changes !== 1) throw new ApiError(409, "คีย์ห้องถูกใช้ไปแล้ว กรุณาขอคีย์ใหม่จากแอดมิน");
 
     let userId = 0;
     try {
-      const created = run(
+      const created = await run(
         "INSERT INTO users (email, real_name, nickname, role, status, password_hash, avatar_color, created_at, last_login_at) VALUES (?, ?, ?, 'member', 'active', ?, ?, ?, ?)",
         email,
         realName,
         nickname,
-        hashPassword(password),
+        await hashPassword(password),
         randomAvatarColor(),
         nowIso(),
         nowIso(),
@@ -63,7 +63,8 @@ export async function POST(req: Request) {
       userId = created.lastInsertRowid;
     } catch {
       // Restore the key so a failed insert never burns an invitation.
-      db.prepare("INSERT OR IGNORE INTO invite_keys (code, note, created_at) VALUES (?, ?, ?)").run(
+      await run(
+        "INSERT OR IGNORE INTO invite_keys (code, note, created_at) VALUES (?, ?, ?)",
         key,
         "กู้คืนอัตโนมัติจากการสมัครที่ไม่สำเร็จ",
         nowIso(),
@@ -71,10 +72,10 @@ export async function POST(req: Request) {
       throw new ApiError(500, "สร้างบัญชีไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     }
 
-    logAudit(userId, "auth.register", `user:${userId}`, `สมัครสมาชิกด้วยคีย์ ${key} (คีย์ถูกลบแล้ว)`);
+    await logAudit(userId, "auth.register", `user:${userId}`, `สมัครสมาชิกด้วยคีย์ ${key} (คีย์ถูกลบแล้ว)`);
     void notifyChannels(`👋 สมาชิกใหม่เข้าห้อง: **${nickname}** (${realName})`);
 
-    const user = one<{
+    const user = await one<{
       id: number;
       email: string;
       real_name: string;

@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     const date = (url.searchParams.get("date") || bkkToday()).slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ApiError(400, "รูปแบบวันที่ไม่ถูกต้อง");
 
-    const records = all<{
+    const records = await all<{
       user_id: number;
       nickname: string;
       role: string;
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const note = optionalStr(body.note, 200);
     const date = bkkToday();
 
-    run(
+    await run(
       `INSERT INTO attendance (user_id, date, status, note, created_at) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(user_id, date) DO UPDATE SET status = excluded.status, note = excluded.note, created_at = excluded.created_at`,
       user.id,
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       nowIso(),
     );
 
-    logAudit(user.id, "attendance.checkin", `attendance:${date}`, `แจ้งสถานะ ${status}`);
+    await logAudit(user.id, "attendance.checkin", `attendance:${date}`, `แจ้งสถานะ ${status}`);
     return json({ ok: true, date, status, note });
   } catch (error) {
     return fail(error);

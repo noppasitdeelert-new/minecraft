@@ -10,7 +10,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const user = await requireUser();
     const itemId = intParam((await ctx.params).id, "itemId");
-    const item = one<{ id: number; name: string; total_qty: number }>(
+    const item = await one<{ id: number; name: string; total_qty: number }>(
       "SELECT id, name, total_qty FROM inventory_items WHERE id = ?",
       itemId,
     );
@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       const qty = Number(body.qty ?? 1);
       if (!Number.isInteger(qty) || qty < 1) throw new ApiError(400, "จำนวนที่ยืมไม่ถูกต้อง");
 
-      const borrowed = one<{ total: number }>(
+      const borrowed = await one<{ total: number }>(
         "SELECT COALESCE(SUM(qty), 0) AS total FROM inventory_loans WHERE item_id = ? AND returned_at IS NULL",
         itemId,
       );
@@ -31,7 +31,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
       const dueRaw = optionalStr(body.due_at, 20);
       const due = dueRaw ? dueRaw.slice(0, 10) : null;
-      run(
+      await run(
         "INSERT INTO inventory_loans (item_id, user_id, qty, borrowed_at, due_at, note) VALUES (?, ?, ?, ?, ?, ?)",
         itemId,
         user.id,
@@ -40,13 +40,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         due,
         optionalStr(body.note, 300),
       );
-      logAudit(user.id, "inventory.borrow", `item:${itemId}`, `ยืม ${item.name} จำนวน ${qty}`);
+      await logAudit(user.id, "inventory.borrow", `item:${itemId}`, `ยืม ${item.name} จำนวน ${qty}`);
       return json({ ok: true });
     }
 
     if (body.action === "return") {
       const loanId = Number(body.loan_id ?? 0);
-      const loan = one<{ id: number; user_id: number; returned_at: string | null; qty: number }>(
+      const loan = await one<{ id: number; user_id: number; returned_at: string | null; qty: number }>(
         "SELECT id, user_id, returned_at, qty FROM inventory_loans WHERE id = ? AND item_id = ?",
         loanId,
         itemId,
@@ -55,8 +55,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (loan.returned_at) throw new ApiError(400, "รายการนี้คืนแล้ว");
       if (loan.user_id !== user.id && !canModerate(user.role)) throw new ApiError(403, "คืนได้เฉพาะผู้ยืมหรือแอดมิน");
 
-      run("UPDATE inventory_loans SET returned_at = ? WHERE id = ?", nowIso(), loanId);
-      logAudit(user.id, "inventory.return", `item:${itemId}`, `คืน ${item.name} จำนวน ${loan.qty}`);
+      await run("UPDATE inventory_loans SET returned_at = ? WHERE id = ?", nowIso(), loanId);
+      await logAudit(user.id, "inventory.return", `item:${itemId}`, `คืน ${item.name} จำนวน ${loan.qty}`);
       return json({ ok: true });
     }
 

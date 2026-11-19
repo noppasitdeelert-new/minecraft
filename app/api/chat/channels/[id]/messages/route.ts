@@ -42,7 +42,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   try {
     await requireUser();
     const channelId = intParam((await ctx.params).id, "channelId");
-    const channel = one("SELECT id FROM channels WHERE id = ?", channelId);
+    const channel = await one("SELECT id FROM channels WHERE id = ?", channelId);
     if (!channel) throw new ApiError(404, "ไม่พบห้องแชตนี้");
 
     const url = new URL(req.url);
@@ -50,9 +50,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
     let rows: Row[];
     if (after > 0) {
-      rows = all<Row>(`${BASE_SELECT} WHERE m.channel_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT 200`, channelId, after);
+      rows = await all<Row>(`${BASE_SELECT} WHERE m.channel_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT 200`, channelId, after);
     } else {
-      const latest = all<Row>(`${BASE_SELECT} WHERE m.channel_id = ? ORDER BY m.id DESC LIMIT 100`, channelId);
+      const latest = await all<Row>(`${BASE_SELECT} WHERE m.channel_id = ? ORDER BY m.id DESC LIMIT 100`, channelId);
       rows = latest.reverse();
     }
 
@@ -66,14 +66,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const user = await requireUser();
     const channelId = intParam((await ctx.params).id, "channelId");
-    const channel = one("SELECT id FROM channels WHERE id = ?", channelId);
+    const channel = await one("SELECT id FROM channels WHERE id = ?", channelId);
     if (!channel) throw new ApiError(404, "ไม่พบห้องแชตนี้");
 
     const body = await readJson<{ body?: string }>(req);
     const text = str(body.body, "ข้อความ", 2000);
 
-    const res = run("INSERT INTO messages (channel_id, user_id, body, created_at) VALUES (?, ?, ?, ?)", channelId, user.id, text, nowIso());
-    const row = one<Row>(`${BASE_SELECT} WHERE m.id = ?`, res.lastInsertRowid);
+    const res = await run("INSERT INTO messages (channel_id, user_id, body, created_at) VALUES (?, ?, ?, ?)", channelId, user.id, text, nowIso());
+    const row = await one<Row>(`${BASE_SELECT} WHERE m.id = ?`, res.lastInsertRowid);
     if (!row) throw new ApiError(500, "ส่งข้อความไม่สำเร็จ");
 
     return json({ message: shape(row) });
@@ -87,11 +87,11 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     const user = await requireUser();
     const channelId = intParam((await ctx.params).id, "channelId");
     const messageId = Number(new URL(req.url).searchParams.get("messageId") || 0);
-    const row = one<{ user_id: number }>("SELECT user_id FROM messages WHERE id = ? AND channel_id = ?", messageId, channelId);
+    const row = await one<{ user_id: number }>("SELECT user_id FROM messages WHERE id = ? AND channel_id = ?", messageId, channelId);
     if (!row) throw new ApiError(404, "ไม่พบข้อความนี้");
     if (row.user_id !== user.id && !canModerate(user.role)) throw new ApiError(403, "ลบข้อความของผู้อื่นไม่ได้");
 
-    run("DELETE FROM messages WHERE id = ?", messageId);
+    await run("DELETE FROM messages WHERE id = ?", messageId);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

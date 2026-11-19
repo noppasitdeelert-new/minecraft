@@ -11,14 +11,14 @@ export async function GET() {
   try {
     await requireUser();
 
-    const items = all<{ id: number; name: string; description: string | null; total_qty: number; borrowed_qty: number }>(
+    const items = await all<{ id: number; name: string; description: string | null; total_qty: number; borrowed_qty: number }>(
       `SELECT i.id, i.name, i.description, i.total_qty,
               COALESCE((SELECT SUM(l.qty) FROM inventory_loans l WHERE l.item_id = i.id AND l.returned_at IS NULL), 0) AS borrowed_qty
          FROM inventory_items i
         ORDER BY i.id`,
     );
 
-    const loans = all<{
+    const loans = await all<{
       id: number;
       item_id: number;
       qty: number;
@@ -77,14 +77,14 @@ export async function POST(req: Request) {
     const qty = Number(body.total_qty ?? 1);
     if (!Number.isInteger(qty) || qty < 1 || qty > 999) throw new ApiError(400, "จำนวนต้องเป็นเลขจำนวนเต็ม 1-999");
 
-    const res = run(
+    const res = await run(
       "INSERT INTO inventory_items (name, description, total_qty, created_at) VALUES (?, ?, ?, ?)",
       name,
       optionalStr(body.description, 500),
       qty,
       nowIso(),
     );
-    logAudit(user.id, "inventory.create", `item:${res.lastInsertRowid}`, name);
+    await logAudit(user.id, "inventory.create", `item:${res.lastInsertRowid}`, name);
     return json({ ok: true, id: res.lastInsertRowid });
   } catch (error) {
     return fail(error);
@@ -96,10 +96,10 @@ export async function DELETE(req: Request) {
     const user = await requireUser();
     if (!canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบรายการนี้");
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const item = one<{ name: string }>("SELECT name FROM inventory_items WHERE id = ?", id);
+    const item = await one<{ name: string }>("SELECT name FROM inventory_items WHERE id = ?", id);
     if (!item) throw new ApiError(404, "ไม่พบสิ่งของนี้");
-    run("DELETE FROM inventory_items WHERE id = ?", id);
-    logAudit(user.id, "inventory.delete", `item:${id}`, item.name);
+    await run("DELETE FROM inventory_items WHERE id = ?", id);
+    await logAudit(user.id, "inventory.delete", `item:${id}`, item.name);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

@@ -14,7 +14,7 @@ export default async function HomePage() {
   const user = await requireUser();
   const dow = currentWeekday();
 
-  const tasks = all<{
+  const tasks = await all<{
     id: number;
     subject: string;
     title: string;
@@ -33,7 +33,7 @@ export default async function HomePage() {
     user.id,
   );
 
-  const todayClasses = all<{
+  const todayClasses = await all<{
     id: number;
     title: string;
     subject: string | null;
@@ -45,12 +45,12 @@ export default async function HomePage() {
     dow,
   );
 
-  const todayDuty = one<{ title: string }>(
+  const todayDuty = await one<{ title: string }>(
     "SELECT title FROM schedule_entries WHERE kind = 'duty' AND day_of_week = ? LIMIT 1",
     dow,
   );
 
-  const counts = one<{
+  const counts = await one<{
     members: number;
     open_polls: number;
     open_tasks: number;
@@ -63,11 +63,11 @@ export default async function HomePage() {
        (SELECT COUNT(*) FROM messages) AS messages`,
   );
 
-  const nextMeeting = one<{ id: number; title: string; starts_at: string; status: string }>(
+  const nextMeeting = await one<{ id: number; title: string; starts_at: string; status: string }>(
     "SELECT id, title, starts_at, status FROM meetings WHERE status != 'ended' ORDER BY starts_at ASC LIMIT 1",
   );
 
-  const attendance = one<{ status: string | null }>(
+  const attendance = await one<{ status: string | null }>(
     "SELECT status FROM attendance WHERE user_id = ? AND date = ?",
     user.id,
     todayBangkok(),

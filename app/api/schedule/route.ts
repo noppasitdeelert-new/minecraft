@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireUser();
-    const entries = all<ScheduleEntry>(
+    const entries = await all<ScheduleEntry>(
       `SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note
          FROM schedule_entries
         ORDER BY kind, COALESCE(day_of_week, 7), COALESCE(start_time, ''), COALESCE(date, '')`,
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       if (t && !/^\d{2}:\d{2}$/.test(t)) throw new ApiError(400, "รูปแบบเวลาไม่ถูกต้อง (HH:MM)");
     }
 
-    const res = run(
+    const res = await run(
       `INSERT INTO schedule_entries (kind, title, subject, location, day_of_week, start_time, end_time, date, note, created_by, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       kind,
@@ -73,9 +73,9 @@ export async function POST(req: Request) {
       user.id,
       nowIso(),
     );
-    logAudit(user.id, "schedule.create", `schedule:${res.lastInsertRowid}`, `${kind}: ${title}`);
+    await logAudit(user.id, "schedule.create", `schedule:${res.lastInsertRowid}`, `${kind}: ${title}`);
 
-    const entry = one<ScheduleEntry>(
+    const entry = await one<ScheduleEntry>(
       "SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note FROM schedule_entries WHERE id = ?",
       res.lastInsertRowid,
     );
@@ -90,10 +90,10 @@ export async function DELETE(req: Request) {
     const user = await requireUser();
     if (!canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบรายการตาราง");
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const entry = one<{ title: string }>("SELECT title FROM schedule_entries WHERE id = ?", id);
+    const entry = await one<{ title: string }>("SELECT title FROM schedule_entries WHERE id = ?", id);
     if (!entry) throw new ApiError(404, "ไม่พบรายการนี้");
-    run("DELETE FROM schedule_entries WHERE id = ?", id);
-    logAudit(user.id, "schedule.delete", `schedule:${id}`, entry.title);
+    await run("DELETE FROM schedule_entries WHERE id = ?", id);
+    await logAudit(user.id, "schedule.delete", `schedule:${id}`, entry.title);
     return json({ ok: true });
   } catch (error) {
     return fail(error);

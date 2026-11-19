@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   try {
     await requireUser();
-    skipCurrent();
+    await skipCurrent();
     return json({ ok: true, ...musicState() });
   } catch (error) {
     return fail(error);

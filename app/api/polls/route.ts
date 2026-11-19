@@ -11,7 +11,7 @@ export async function GET() {
   try {
     const user = await requireUser();
 
-    const polls = all<{
+    const polls = await all<{
       id: number;
       question: string;
       description: string | null;
@@ -29,7 +29,7 @@ export async function GET() {
         ORDER BY (p.status = 'closed') ASC, p.created_at DESC`,
     );
 
-    const options = all<{ id: number; poll_id: number; label: string; votes: number; voters: string | null }>(
+    const options = await all<{ id: number; poll_id: number; label: string; votes: number; voters: string | null }>(
       `SELECT o.id, o.poll_id, o.label,
               (SELECT COUNT(*) FROM poll_votes v WHERE v.option_id = o.id) AS votes,
               (SELECT GROUP_CONCAT(u.nickname, ', ') FROM poll_votes v JOIN users u ON u.id = v.user_id WHERE v.option_id = o.id) AS voters
@@ -37,7 +37,7 @@ export async function GET() {
         ORDER BY o.id`,
     );
 
-    const mine = all<{ poll_id: number; option_id: number }>("SELECT poll_id, option_id FROM poll_votes WHERE user_id = ?", user.id);
+    const mine = await all<{ poll_id: number; option_id: number }>("SELECT poll_id, option_id FROM poll_votes WHERE user_id = ?", user.id);
 
     const result: Poll[] = polls.map((p) => {
       const pollOptions = options
@@ -83,11 +83,11 @@ export async function POST(req: Request) {
     const options = rawOptions.map((o) => String(o).trim()).filter(Boolean).slice(0, 10);
     if (options.length < 2) throw new ApiError(400, "ต้องมีตัวเลือกอย่างน้อย 2 ข้อ");
 
-    const res = run("INSERT INTO polls (question, description, created_by, created_at) VALUES (?, ?, ?, ?)", question, description, user.id, nowIso());
+    const res = await run("INSERT INTO polls (question, description, created_by, created_at) VALUES (?, ?, ?, ?)", question, description, user.id, nowIso());
     const insertOption = (label: string) => run("INSERT INTO poll_options (poll_id, label) VALUES (?, ?)", res.lastInsertRowid, label);
-    for (const label of options) insertOption(label.slice(0, 120));
+    for (const label of options) await insertOption(label.slice(0, 120));
 
-    logAudit(user.id, "poll.create", `poll:${res.lastInsertRowid}`, question);
+    await logAudit(user.id, "poll.create", `poll:${res.lastInsertRowid}`, question);
     void notifyChannels(`🗳️ โพลใหม่: **${question}**\nโดย ${user.nickname}`);
     return json({ ok: true, id: res.lastInsertRowid });
   } catch (error) {

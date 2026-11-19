@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireManager();
-    return json({ songs: listSongs(), ...musicState() });
+    return json({ songs: await listSongs(), ...musicState() });
   } catch (error) {
     return fail(error);
   }
@@ -86,14 +86,14 @@ export async function POST(req: Request) {
     let queued = false;
     if (body.enqueue !== false) {
       try {
-        addToQueue(result.song.id, admin.id);
+        await addToQueue(result.song.id, admin.id);
         queued = true;
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 409) throw error;
       }
     }
 
-    logAudit(
+    await logAudit(
       admin.id,
       "music.add",
       `song:${result.song.id}`,
@@ -110,8 +110,8 @@ export async function DELETE(req: Request) {
     const admin = await requireManager();
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
     if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, "ไม่พบเพลงที่ต้องการลบ");
-    deleteSong(id);
-    logAudit(admin.id, "music.delete", `song:${id}`, "ลบเพลงออกจากคลัง");
+    await deleteSong(id);
+    await logAudit(admin.id, "music.delete", `song:${id}`, "ลบเพลงออกจากคลัง");
     return json({ ok: true });
   } catch (error) {
     return fail(error);

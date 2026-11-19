@@ -12,7 +12,7 @@ const MAX_IMAGE_CHARS = 3_000_000; // ~2.2MB binary after base64
 export async function GET() {
   try {
     await requireUser();
-    const rows = all<{
+    const rows = await all<{
       id: number;
       title: string;
       image_url: string;
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     if (!isData && !isHttp) throw new ApiError(400, "รองรับเฉพาะไฟล์รูปภาพหรือลิงก์ http(s)");
     if (url.length > MAX_IMAGE_CHARS) throw new ApiError(413, "ไฟล์รูปใหญ่เกินไป (สูงสุด ~2 MB)");
 
-    const res = run(
+    const res = await run(
       "INSERT INTO gallery_photos (user_id, title, image_url, caption, created_at) VALUES (?, ?, ?, ?, ?)",
       user.id,
       title,
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       optionalStr(body.caption, 500),
       nowIso(),
     );
-    logAudit(user.id, "gallery.create", `photo:${res.lastInsertRowid}`, title);
+    await logAudit(user.id, "gallery.create", `photo:${res.lastInsertRowid}`, title);
     return json({ ok: true, id: res.lastInsertRowid });
   } catch (error) {
     return fail(error);
@@ -77,11 +77,11 @@ export async function DELETE(req: Request) {
   try {
     const user = await requireUser();
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const photo = one<{ user_id: number; title: string }>("SELECT user_id, title FROM gallery_photos WHERE id = ?", id);
+    const photo = await one<{ user_id: number; title: string }>("SELECT user_id, title FROM gallery_photos WHERE id = ?", id);
     if (!photo) throw new ApiError(404, "ไม่พบรูปนี้");
     if (photo.user_id !== user.id && !canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบรูปนี้");
-    run("DELETE FROM gallery_photos WHERE id = ?", id);
-    logAudit(user.id, "gallery.delete", `photo:${id}`, photo.title);
+    await run("DELETE FROM gallery_photos WHERE id = ?", id);
+    await logAudit(user.id, "gallery.delete", `photo:${id}`, photo.title);
     return json({ ok: true });
   } catch (error) {
     return fail(error);
