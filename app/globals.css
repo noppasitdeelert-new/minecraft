@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans Thai", "IBM Plex Sans Thai", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --color-ink-950: #070b16;
+  --color-ink-900: #0b1224;
+  --color-ink-800: #121a33;
+  --color-ink-700: #1b2545;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-[#070b16] text-slate-200 antialiased;
+    background-image:
+      radial-gradient(60rem 40rem at 85% -10%, rgba(99, 102, 241, 0.16), transparent 65%),
+      radial-gradient(45rem 35rem at 0% 0%, rgba(168, 85, 247, 0.12), transparent 60%),
+      radial-gradient(50rem 40rem at 50% 110%, rgba(14, 165, 233, 0.08), transparent 70%);
+    background-attachment: fixed;
+    font-feature-settings: "liga" 1;
+  }
+
+  ::selection {
+    @apply bg-indigo-500/40 text-white;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-white/8 bg-white/[0.035] shadow-[0_18px_45px_-28px_rgba(2,6,23,0.9)] backdrop-blur-xl;
+  }
+
+  .card-hover {
+    @apply transition duration-200 hover:border-indigo-400/30 hover:bg-white/[0.06];
+  }
+
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition
+      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-400 hover:to-violet-400;
+  }
+
+  .btn-ghost {
+    @apply border border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20 hover:bg-white/[0.08];
+  }
+
+  .btn-danger {
+    @apply border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20;
+  }
+
+  .btn-sm {
+    @apply rounded-lg px-3 py-1.5 text-xs;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-slate-950/50 px-3.5 py-2.5 text-sm text-slate-100
+      placeholder:text-slate-500 transition
+      focus:border-indigo-400/60 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none;
+  }
+
+  .input-lg {
+    @apply rounded-xl px-4 py-3 text-base tracking-[0.3em];
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-slate-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset;
+  }
+
+  .section-title {
+    @apply flex items-center gap-2 text-lg font-semibold text-white;
+  }
+
+  .muted {
+    @apply text-sm text-slate-400;
+  }
+
+  .divider {
+    @apply border-t border-white/8;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-white;
+  }
+
+  .nav-link-active {
+    @apply bg-gradient-to-r from-indigo-500/20 to-violet-500/10 text-white ring-1 ring-inset ring-indigo-400/25;
+  }
+
+  .tile {
+    @apply flex flex-col gap-1 rounded-xl border border-white/8 bg-white/[0.03] p-4 transition hover:border-indigo-400/30 hover:bg-white/[0.06];
+  }
+
+  .avatar {
+    @apply flex shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-white/10;
+  }
+
+  .chat-scroll {
+    @apply overflow-y-auto overscroll-contain;
+  }
+
+  .prose-body {
+    @apply text-sm leading-relaxed whitespace-pre-wrap text-slate-300;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.28s ease-out both;
+}
+
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+.pulse-ring {
+  animation: pulseRing 2s infinite;
+}
