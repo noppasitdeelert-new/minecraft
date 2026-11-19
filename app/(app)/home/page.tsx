@@ -14,64 +14,61 @@ export default async function HomePage() {
   const user = await requireUser();
   const dow = currentWeekday();
 
-  const tasks = await all<{
-    id: number;
-    subject: string;
-    title: string;
-    due_date: string | null;
-    my_status: string | null;
-    done_count: number;
-    total_members: number;
-  }>(
-    `SELECT t.id, t.subject, t.title, t.due_date, ts.status AS my_status,
-            (SELECT COUNT(*) FROM task_status x WHERE x.task_id = t.id AND x.status = 'done') AS done_count,
-            (SELECT COUNT(*) FROM users WHERE status = 'active') AS total_members
-       FROM tasks t
-       LEFT JOIN task_status ts ON ts.task_id = t.id AND ts.user_id = ?
-      ORDER BY (ts.status = 'done') ASC, COALESCE(t.due_date, '9999-12-31') ASC
-      LIMIT 4`,
-    user.id,
-  );
-
-  const todayClasses = await all<{
-    id: number;
-    title: string;
-    subject: string | null;
-    start_time: string | null;
-    end_time: string | null;
-    location: string | null;
-  }>(
-    "SELECT id, title, subject, start_time, end_time, location FROM schedule_entries WHERE kind = 'class' AND day_of_week = ? ORDER BY start_time",
-    dow,
-  );
-
-  const todayDuty = await one<{ title: string }>(
-    "SELECT title FROM schedule_entries WHERE kind = 'duty' AND day_of_week = ? LIMIT 1",
-    dow,
-  );
-
-  const counts = await one<{
-    members: number;
-    open_polls: number;
-    open_tasks: number;
-    messages: number;
-  }>(
-    `SELECT
-       (SELECT COUNT(*) FROM users WHERE status = 'active') AS members,
-       (SELECT COUNT(*) FROM polls WHERE status = 'open') AS open_polls,
-       (SELECT COUNT(*) FROM tasks) AS open_tasks,
-       (SELECT COUNT(*) FROM messages) AS messages`,
-  );
-
-  const nextMeeting = await one<{ id: number; title: string; starts_at: string; status: string }>(
-    "SELECT id, title, starts_at, status FROM meetings WHERE status != 'ended' ORDER BY starts_at ASC LIMIT 1",
-  );
-
-  const attendance = await one<{ status: string | null }>(
-    "SELECT status FROM attendance WHERE user_id = ? AND date = ?",
-    user.id,
-    todayBangkok(),
-  );
+  const [tasks, todayClasses, todayDuty, counts, nextMeeting, attendance] = await Promise.all([
+    all<{
+      id: number;
+      subject: string;
+      title: string;
+      due_date: string | null;
+      my_status: string | null;
+      done_count: number;
+      total_members: number;
+    }>(
+      `SELECT t.id, t.subject, t.title, t.due_date, ts.status AS my_status,
+              (SELECT COUNT(*) FROM task_status x WHERE x.task_id = t.id AND x.status = 'done') AS done_count,
+              (SELECT COUNT(*) FROM users WHERE status = 'active') AS total_members
+         FROM tasks t
+         LEFT JOIN task_status ts ON ts.task_id = t.id AND ts.user_id = ?
+        ORDER BY (ts.status = 'done') ASC, COALESCE(t.due_date, '9999-12-31') ASC
+        LIMIT 4`,
+      user.id,
+    ),
+    all<{
+      id: number;
+      title: string;
+      subject: string | null;
+      start_time: string | null;
+      end_time: string | null;
+      location: string | null;
+    }>(
+      "SELECT id, title, subject, start_time, end_time, location FROM schedule_entries WHERE kind = 'class' AND day_of_week = ? ORDER BY start_time",
+      dow,
+    ),
+    one<{ title: string }>(
+      "SELECT title FROM schedule_entries WHERE kind = 'duty' AND day_of_week = ? LIMIT 1",
+      dow,
+    ),
+    one<{
+      members: number;
+      open_polls: number;
+      open_tasks: number;
+      messages: number;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM users WHERE status = 'active') AS members,
+         (SELECT COUNT(*) FROM polls WHERE status = 'open') AS open_polls,
+         (SELECT COUNT(*) FROM tasks) AS open_tasks,
+         (SELECT COUNT(*) FROM messages) AS messages`,
+    ),
+    one<{ id: number; title: string; starts_at: string; status: string }>(
+      "SELECT id, title, starts_at, status FROM meetings WHERE status != 'ended' ORDER BY starts_at ASC LIMIT 1",
+    ),
+    one<{ status: string | null }>(
+      "SELECT status FROM attendance WHERE user_id = ? AND date = ?",
+      user.id,
+      todayBangkok(),
+    ),
+  ]);
 
   return (
     <div className="space-y-6">

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { one, run, nowIso } from "./db";
 import { randomHex } from "./crypto";
@@ -63,7 +64,8 @@ export async function destroySession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+/** Memoised per request: the app layout and the page share one session lookup. */
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   let id: string | undefined;
   try {
     const store = await cookies();
@@ -83,7 +85,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!user) return null;
   if (user.status !== "active") return null;
   return user;
-}
+});
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();

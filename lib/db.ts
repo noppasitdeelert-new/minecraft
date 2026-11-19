@@ -81,14 +81,32 @@ async function initialise(): Promise<D1Database> {
   return env.DB;
 }
 
+/**
+ * Schema version. Bump it whenever SCHEMA changes so existing databases run the
+ * statements again; unchanged databases skip the whole block (one cheap query).
+ */
+const SCHEMA_VERSION = "2026-11-19.2";
+
 /** D1's exec() is line-oriented, so apply the schema statement by statement. */
 async function migrate(db: D1Database): Promise<void> {
+  const current = await db
+    .prepare("SELECT value FROM settings WHERE key = 'schema_version'")
+    .first<{ value?: string }>()
+    .catch(() => null);
+  if (current?.value === SCHEMA_VERSION) return;
+
   const statements = SCHEMA.split(";")
     .map((statement) => statement.trim())
     .filter(Boolean);
   for (const statement of statements) {
     await db.prepare(statement).run();
   }
+  await db
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .bind(SCHEMA_VERSION)
+    .run();
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,6 +184,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at  TEXT NOT NULL,
   expires_at  TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
 CREATE TABLE IF NOT EXISTS channels (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +215,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_announcements_pinned ON announcements(pinned, created_at);
 
 CREATE TABLE IF NOT EXISTS meetings (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,6 +228,7 @@ CREATE TABLE IF NOT EXISTS meetings (
   created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at  TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status, starts_at);
 
 CREATE TABLE IF NOT EXISTS meeting_participants (
   meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -235,6 +256,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at  TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
 
 CREATE TABLE IF NOT EXISTS task_status (
   task_id     INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -243,6 +265,7 @@ CREATE TABLE IF NOT EXISTS task_status (
   updated_at  TEXT NOT NULL,
   PRIMARY KEY (task_id, user_id)
 );
+CREATE INDEX IF NOT EXISTS idx_task_status_user ON task_status(user_id);
 
 CREATE TABLE IF NOT EXISTS schedule_entries (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -258,6 +281,7 @@ CREATE TABLE IF NOT EXISTS schedule_entries (
   created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at   TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_schedule_kind_day ON schedule_entries(kind, day_of_week);
 
 CREATE TABLE IF NOT EXISTS attendance (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -268,6 +292,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   created_at  TEXT NOT NULL,
   UNIQUE (user_id, date)
 );
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
 
 CREATE TABLE IF NOT EXISTS polls (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -283,6 +308,7 @@ CREATE TABLE IF NOT EXISTS poll_options (
   poll_id  INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   label    TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_poll_options_poll ON poll_options(poll_id);
 
 CREATE TABLE IF NOT EXISTS poll_votes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -292,6 +318,7 @@ CREATE TABLE IF NOT EXISTS poll_votes (
   created_at TEXT NOT NULL,
   UNIQUE (poll_id, user_id)
 );
+CREATE INDEX IF NOT EXISTS idx_poll_votes_poll ON poll_votes(poll_id);
 
 CREATE TABLE IF NOT EXISTS resources (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +330,7 @@ CREATE TABLE IF NOT EXISTS resources (
   created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at  TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_resources_created ON resources(created_at);
 
 CREATE TABLE IF NOT EXISTS qa_posts (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -313,6 +341,7 @@ CREATE TABLE IF NOT EXISTS qa_posts (
   resolved   INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_qa_posts_created ON qa_posts(created_at);
 
 CREATE TABLE IF NOT EXISTS qa_answers (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -321,6 +350,7 @@ CREATE TABLE IF NOT EXISTS qa_answers (
   body       TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_qa_answers_post ON qa_answers(post_id);
 
 CREATE TABLE IF NOT EXISTS inventory_items (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -340,6 +370,7 @@ CREATE TABLE IF NOT EXISTS inventory_loans (
   returned_at  TEXT,
   note         TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_inventory_loans_item ON inventory_loans(item_id);
 
 CREATE TABLE IF NOT EXISTS gallery_photos (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -349,6 +380,7 @@ CREATE TABLE IF NOT EXISTS gallery_photos (
   caption    TEXT,
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery_photos(created_at);
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -358,6 +390,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   detail     TEXT,
   created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
@@ -403,6 +436,7 @@ CREATE TABLE IF NOT EXISTS songs (
   added_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at   TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_songs_created ON songs(created_at);
 
 CREATE TABLE IF NOT EXISTS music_queue (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

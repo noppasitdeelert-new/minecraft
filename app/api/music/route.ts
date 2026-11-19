@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const user = await requireUser();
     return json({
-      ...musicState(),
+      ...(await musicState()),
       songs: await listSongs(),
       canManage: canManage(user.role),
       serverTime: new Date().toISOString(),

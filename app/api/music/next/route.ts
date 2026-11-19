@@ -10,7 +10,7 @@ export async function POST() {
   try {
     await requireUser();
     await skipCurrent();
-    return json({ ok: true, ...musicState() });
+    return json({ ok: true, ...(await musicState()) });
   } catch (error) {
     return fail(error);
   }

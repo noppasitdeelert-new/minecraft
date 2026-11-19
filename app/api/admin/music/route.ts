@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireManager();
-    return json({ songs: await listSongs(), ...musicState() });
+    return json({ songs: await listSongs(), ...(await musicState()) });
   } catch (error) {
     return fail(error);
   }
