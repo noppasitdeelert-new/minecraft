@@ -145,31 +145,12 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
         </div>
       ) : null}
 
-      <main className="px-4 pt-6 pb-40 sm:px-6 lg:ml-64 lg:px-8 lg:pb-28">
+      <main className="px-4 pt-6 pb-28 sm:px-6 lg:ml-64 lg:px-8 lg:pb-28">
         <div className="mx-auto w-full max-w-6xl animate-fade-up">
           <NotificationPrompt />
           {children}
         </div>
       </main>
-
-      {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#0a1020]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-        <ul className="grid grid-cols-6">
-          {NAV.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition ${
-                  active(item.href) ? "text-indigo-300" : "text-slate-500"
-                }`}
-              >
-                <Icon name={item.icon} className="size-5" />
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
     </div>
     </MusicPlayerProvider>
   );

@@ -180,7 +180,7 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
       />
 
       {showBar && current ? (
-        <div className="fixed inset-x-3 bottom-16 z-30 lg:inset-x-auto lg:right-6 lg:bottom-5 lg:left-[17.5rem]">
+        <div className="fixed inset-x-3 bottom-3 z-30 pb-[env(safe-area-inset-bottom)] lg:inset-x-auto lg:right-6 lg:bottom-5 lg:left-[17.5rem]">
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#0b1224]/95 px-3 py-2.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
             {current.artwork_url ? (
               // eslint-disable-next-line @next/next/no-img-element
