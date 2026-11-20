@@ -2,6 +2,7 @@ import { ApiError, fail, json, optionalStr, readJson, str } from "@/lib/api";
 import { all, one, run, nowIso } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
+import { awardXpOnce } from "@/lib/xp";
 import type { Task } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -112,6 +113,11 @@ export async function PATCH(req: Request) {
 
     const task = await one<{ id: number; title: string }>("SELECT id, title FROM tasks WHERE id = ?", id);
     if (!task) throw new ApiError(404, "ไม่พบงานนี้");
+    const previous = await one<{ status: string }>(
+      "SELECT status FROM task_status WHERE task_id = ? AND user_id = ?",
+      id,
+      user.id,
+    );
 
     await run(
       `INSERT INTO task_status (task_id, user_id, status, updated_at) VALUES (?, ?, ?, ?)
@@ -121,7 +127,8 @@ export async function PATCH(req: Request) {
       status,
       nowIso(),
     );
-    return json({ ok: true, status });
+    const xp = status === "done" && previous?.status !== "done" ? await awardXpOnce(user.id, 15, `task.done:${id}`) : null;
+    return json({ ok: true, status, xp });
   } catch (error) {
     return fail(error);
   }

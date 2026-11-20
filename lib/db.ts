@@ -85,7 +85,24 @@ async function initialise(): Promise<D1Database> {
  * Schema version. Bump it whenever SCHEMA changes so existing databases run the
  * statements again; unchanged databases skip the whole block (one cheap query).
  */
-const SCHEMA_VERSION = "2026-11-19.2";
+const SCHEMA_VERSION = "2026-11-20.1";
+
+/** Columns added after the first release — existing databases need ALTER TABLE. */
+const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }> = [
+  { table: "users", column: "xp", statement: "ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0" },
+  { table: "users", column: "bio", statement: "ALTER TABLE users ADD COLUMN bio TEXT" },
+  { table: "users", column: "title", statement: "ALTER TABLE users ADD COLUMN title TEXT" },
+  { table: "users", column: "avatar_url", statement: "ALTER TABLE users ADD COLUMN avatar_url TEXT" },
+];
+
+async function ensureColumns(db: D1Database): Promise<void> {
+  for (const entry of ADDED_COLUMNS) {
+    const info = await db.prepare(`PRAGMA table_info(${entry.table})`).all<{ name?: string }>();
+    const names = (info.results ?? []).map((row) => String(row.name ?? ""));
+    if (names.includes(entry.column)) continue;
+    await db.prepare(entry.statement).run();
+  }
+}
 
 /** D1's exec() is line-oriented, so apply the schema statement by statement. */
 async function migrate(db: D1Database): Promise<void> {
@@ -101,6 +118,7 @@ async function migrate(db: D1Database): Promise<void> {
   for (const statement of statements) {
     await db.prepare(statement).run();
   }
+  await ensureColumns(db);
   await db
     .prepare(
       "INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -163,6 +181,10 @@ CREATE TABLE IF NOT EXISTS users (
   status         TEXT NOT NULL DEFAULT 'active',
   password_hash  TEXT,
   avatar_color   TEXT NOT NULL DEFAULT '#6366f1',
+  avatar_url     TEXT,
+  xp             INTEGER NOT NULL DEFAULT 0,
+  bio            TEXT,
+  title          TEXT,
   created_at     TEXT NOT NULL,
   last_login_at  TEXT
 );
@@ -437,6 +459,34 @@ CREATE TABLE IF NOT EXISTS songs (
   created_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_songs_created ON songs(created_at);
+
+CREATE TABLE IF NOT EXISTS xp_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount     INTEGER NOT NULL,
+  reason     TEXT NOT NULL,
+  actor_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_xp_log_user ON xp_log(user_id, id);
+
+CREATE TABLE IF NOT EXISTS user_titles (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label      TEXT NOT NULL,
+  granted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, label)
+);
+
+CREATE TABLE IF NOT EXISTS nox_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_nox_messages_user ON nox_messages(user_id, id);
 
 CREATE TABLE IF NOT EXISTS music_queue (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

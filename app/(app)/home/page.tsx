@@ -3,9 +3,10 @@ import { all, one } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
 import { formatDateShort, formatDateTime, formatClockTime, dueLabel, currentWeekday, weekdayName, todayBangkok } from "@/lib/format";
 import { DAY_LABEL, ROLE_LABEL } from "@/lib/labels";
+import { levelFromXp } from "@/lib/levels";
 import AttendanceWidget from "@/components/AttendanceWidget";
 import AnnouncementBoard from "@/components/AnnouncementBoard";
-import { Avatar, Empty, SectionCard, Stat } from "@/components/ui";
+import { Avatar, Empty, LevelBadge, SectionCard, Stat, TitleBadge } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function HomePage() {
   const user = await requireUser();
   const dow = currentWeekday();
 
-  const [tasks, todayClasses, todayDuty, counts, nextMeeting, attendance] = await Promise.all([
+  const [tasks, todayClasses, todayDuty, counts, nextMeeting, attendance, leaderboard] = await Promise.all([
     all<{
       id: number;
       subject: string;
@@ -68,6 +69,17 @@ export default async function HomePage() {
       user.id,
       todayBangkok(),
     ),
+    all<{
+      id: number;
+      nickname: string;
+      role: string;
+      avatar_color: string;
+      avatar_url: string | null;
+      title: string | null;
+      xp: number;
+    }>(
+      "SELECT id, nickname, role, avatar_color, avatar_url, title, xp FROM users WHERE status = 'active' ORDER BY xp DESC LIMIT 5",
+    ),
   ]);
 
   return (
@@ -89,6 +101,9 @@ export default async function HomePage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <Link href="/meeting" className="btn btn-primary">
               <Icon name="video" className="size-4" /> เข้าห้องประชุม
+            </Link>
+            <Link href="/nox" className="btn btn-ghost">
+              <Icon name="spark" className="size-4" /> ถาม Nox AI
             </Link>
             <Link href="/chat" className="btn btn-ghost">
               <Icon name="chat" className="size-4" /> แชตห้อง
@@ -184,6 +199,37 @@ export default async function HomePage() {
         </div>
 
         <div className="space-y-5">
+          <SectionCard
+            title="อันดับ XP ห้อง SKC105"
+            icon="trophy"
+            action={
+              <Link href="/hub#leaderboard" className="text-xs font-medium text-indigo-300 hover:text-indigo-200">
+                ดูทั้งหมด
+              </Link>
+            }
+          >
+            {leaderboard.length === 0 ? (
+              <Empty icon="trophy" title="ยังไม่มีสมาชิกในกระดานอันดับ" hint="สะสม XP จากการเช็กชื่อและทำการบ้าน" />
+            ) : (
+              <ol className="space-y-2">
+                {leaderboard.map((member, index) => (
+                  <li key={member.id} className="flex items-center gap-2.5">
+                    <span className="w-4 shrink-0 text-center font-mono text-[11px] font-bold text-slate-500">{index + 1}</span>
+                    <Avatar name={member.nickname} color={member.avatar_color} imageUrl={member.avatar_url} size={28} />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1 truncate text-sm font-medium text-slate-100">
+                        {member.nickname}
+                        <LevelBadge level={levelFromXp(member.xp)} className="!px-1 !py-0 !text-[9px]" />
+                      </p>
+                      <TitleBadge title={member.title} className="!px-1.5 !py-0 !text-[9px]" />
+                    </div>
+                    <span className="shrink-0 font-mono text-xs font-semibold text-indigo-200">{member.xp} XP</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </SectionCard>
+
           <SectionCard title="เช็กชื่อวันนี้" icon="users">
             <AttendanceWidget compact />
           </SectionCard>

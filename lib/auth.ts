@@ -19,6 +19,10 @@ export type SessionUser = {
   role: Role;
   status: UserStatus;
   avatar_color: string;
+  avatar_url: string | null;
+  xp: number;
+  bio: string | null;
+  title: string | null;
   created_at: string;
   last_login_at: string | null;
 };
@@ -76,7 +80,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!id) return null;
 
   const user = await one<SessionUser>(
-    `SELECT u.id, u.email, u.real_name, u.nickname, u.role, u.status, u.avatar_color, u.created_at, u.last_login_at
+    `SELECT u.id, u.email, u.real_name, u.nickname, u.role, u.status, u.avatar_color, u.avatar_url,
+            u.xp, u.bio, u.title, u.created_at, u.last_login_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND s.expires_at > ?`,
     id,

@@ -2,19 +2,36 @@ import type { ReactNode } from "react";
 import { ROLE_LABEL, ROLE_STYLE } from "@/lib/labels";
 import type { Role } from "@/lib/labels";
 import { initials } from "@/lib/format";
+import { levelProgress } from "@/lib/levels";
 import { Icon } from "./icons";
 
 export function Avatar({
   name,
   color,
+  imageUrl,
   size = 36,
   className = "",
 }: {
   name: string;
   color?: string | null;
+  imageUrl?: string | null;
   size?: number;
   className?: string;
 }) {
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt={name}
+        width={size}
+        height={size}
+        loading="lazy"
+        className={`shrink-0 rounded-full object-cover ring-2 ring-white/10 ${className}`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
   return (
     <span
       className={`avatar ${className}`}
@@ -34,6 +51,37 @@ export function Avatar({
 export function RoleBadge({ role, className = "" }: { role: Role | string; className?: string }) {
   const key = (role in ROLE_LABEL ? role : "member") as Role;
   return <span className={`badge ${ROLE_STYLE[key]} ${className}`}>{ROLE_LABEL[key]}</span>;
+}
+
+export function LevelBadge({ level, className = "" }: { level: number; className?: string }) {
+  return <span className={`badge bg-amber-500/15 text-amber-300 ring-amber-400/30 ${className}`}>Lv.{level}</span>;
+}
+
+export function TitleBadge({ title, className = "" }: { title?: string | null; className?: string }) {
+  if (!title) return null;
+  return <span className={`badge bg-violet-500/10 text-violet-200 ring-violet-400/25 ${className}`}>✨ {title}</span>;
+}
+
+export function XpBar({ xp, className = "" }: { xp: number; className?: string }) {
+  const progress = levelProgress(xp);
+  return (
+    <div className={className}>
+      <div className="flex items-center justify-between text-[11px] text-slate-400">
+        <span>
+          Lv.{progress.level} · {progress.xp} XP
+        </span>
+        <span>
+          {progress.into}/{progress.need} XP สู่ Lv.{progress.level + 1}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-violet-400"
+          style={{ width: `${progress.percent}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function Empty({ icon = "hub", title, hint }: { icon?: string; title: string; hint?: string }) {

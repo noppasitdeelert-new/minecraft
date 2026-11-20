@@ -1,7 +1,8 @@
 import { fail, json, readJson, optionalStr, ApiError } from "@/lib/api";
-import { all, run, nowIso } from "@/lib/db";
+import { all, one, run, nowIso } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { logAudit } from "@/lib/integrations";
+import { awardXp } from "@/lib/xp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,11 @@ export async function POST(req: Request) {
     if (!VALID.includes(status)) throw new ApiError(400, "สถานะการเข้าเรียนไม่ถูกต้อง");
     const note = optionalStr(body.note, 200);
     const date = bkkToday();
+    const existing = await one<{ status: string }>(
+      "SELECT status FROM attendance WHERE user_id = ? AND date = ?",
+      user.id,
+      date,
+    );
 
     await run(
       `INSERT INTO attendance (user_id, date, status, note, created_at) VALUES (?, ?, ?, ?, ?)
@@ -76,8 +82,9 @@ export async function POST(req: Request) {
       nowIso(),
     );
 
+    const xp = existing ? null : await awardXp(user.id, 10, "attendance.checkin");
     await logAudit(user.id, "attendance.checkin", `attendance:${date}`, `แจ้งสถานะ ${status}`);
-    return json({ ok: true, date, status, note });
+    return json({ ok: true, date, status, note, xp });
   } catch (error) {
     return fail(error);
   }

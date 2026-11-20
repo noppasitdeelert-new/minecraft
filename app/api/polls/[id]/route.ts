@@ -2,6 +2,7 @@ import { ApiError, fail, intParam, json, readJson } from "@/lib/api";
 import { one, run, nowIso } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
 import { logAudit } from "@/lib/integrations";
+import { awardXpOnce } from "@/lib/xp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       if (existing) throw new ApiError(409, "คุณโหวตโพลนี้ไปแล้ว (1 บัญชีโหวตได้ 1 ครั้ง)");
 
       await run("INSERT INTO poll_votes (poll_id, option_id, user_id, created_at) VALUES (?, ?, ?, ?)", pollId, optionId, user.id, nowIso());
-      return json({ ok: true });
+      const xp = await awardXpOnce(user.id, 5, `poll.vote:${pollId}`);
+      return json({ ok: true, xp });
     }
 
     if (body.action === "close" || body.action === "reopen") {

@@ -16,11 +16,13 @@ export type ShellUser = {
   email: string;
   role: Role;
   avatar_color: string;
+  avatar_url: string | null;
 };
 
 const NAV = [
   { href: "/home", label: "หน้าแรก", icon: "home" },
   { href: "/chat", label: "แชตห้อง", icon: "chat" },
+  { href: "/nox", label: "Nox AI", icon: "spark" },
   { href: "/meeting", label: "ห้องประชุม", icon: "video" },
   { href: "/tasks", label: "การบ้าน", icon: "tasks" },
   { href: "/schedule", label: "ตารางเรียน", icon: "calendar" },
@@ -71,7 +73,7 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
 
         <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
           <Link href="/profile" className="flex items-center gap-2.5 rounded-lg transition hover:opacity-80">
-            <Avatar name={user.nickname} color={user.avatar_color} size={36} />
+            <Avatar name={user.nickname} color={user.avatar_color} imageUrl={user.avatar_url} size={36} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">{user.nickname}</p>
               <p className="truncate text-[11px] text-slate-500">{user.email}</p>
@@ -104,7 +106,7 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
         <div className="flex items-center gap-2">
           <RoleBadge role={user.role} />
           <Link href="/profile" aria-label="เปิดโปรไฟล์ของฉัน">
-            <Avatar name={user.nickname} color={user.avatar_color} size={30} />
+            <Avatar name={user.nickname} color={user.avatar_color} imageUrl={user.avatar_url} size={30} />
           </Link>
         </div>
       </header>

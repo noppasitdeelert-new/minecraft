@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/client";
 import { formatDateShort, formatDateTime, relativeTime } from "@/lib/format";
 import { ROLE_LABEL, ROLE_STYLE, STATUS_LABEL, STATUS_STYLE } from "@/lib/labels";
+import { levelFromXp } from "@/lib/levels";
 import type { Role } from "@/lib/labels";
 import type { AdminMember, ApiKeyItem, AuditLog, InviteKey, MusicSong, WebhookItem } from "@/lib/types";
-import { Alert, Avatar, Empty, RoleBadge } from "./ui";
+import { Alert, Avatar, Empty, LevelBadge, RoleBadge } from "./ui";
+import MemberXpEditor from "./admin/MemberXpEditor";
 import { Icon } from "./icons";
 
 const TABS = [
@@ -177,7 +179,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
     }
   }
 
-  async function updateMember(member: AdminMember, payload: { role?: string; status?: string }) {
+  async function updateMember(member: AdminMember, payload: { role?: string; status?: string; xpDelta?: number; title?: string }) {
     setError(null);
     try {
       await apiPatch("/api/admin/users", { id: member.id, ...payload });
@@ -603,6 +605,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
                     <th className="px-4 py-2.5 font-medium">ชื่อจริง</th>
                     <th className="px-4 py-2.5 font-medium">อีเมล</th>
                     <th className="px-4 py-2.5 font-medium">ยศ / บทบาท</th>
+                    <th className="px-4 py-2.5 font-medium">แต้ม XP / ฉายา</th>
                     <th className="px-4 py-2.5 font-medium">สถานะ</th>
                     <th className="px-4 py-2.5 font-medium">เข้าใช้ล่าสุด</th>
                   </tr>
@@ -614,9 +617,12 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
                       <tr key={m.id} className="hover:bg-white/[0.02]">
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-2">
-                            <Avatar name={m.nickname} color={m.avatar_color} size={26} />
+                            <Avatar name={m.nickname} color={m.avatar_color} imageUrl={m.avatar_url} size={26} />
                             <div>
-                              <p className="font-medium text-slate-100">{m.nickname}</p>
+                              <p className="flex items-center gap-1 font-medium text-slate-100">
+                                {m.nickname}
+                                <LevelBadge level={levelFromXp(m.xp)} className="!px-1 !py-0 !text-[9px]" />
+                              </p>
                               <p className="text-[10px] text-slate-500">{m.message_count} ข้อความ</p>
                             </div>
                           </div>
@@ -641,6 +647,9 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
                                 ))}
                             </select>
                           )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <MemberXpEditor member={m} onSave={(payload) => updateMember(m, payload)} />
                         </td>
                         <td className="px-4 py-2.5">
                           {m.role === "owner" || m.id === me.id ? (
@@ -669,6 +678,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
           </div>
           <p className="text-[11px] text-slate-500">
             บัญชีแอดมินสูงสุดแก้ไขไม่ได้ · การระงับบัญชีจะตัด session ทั้งหมดทันที · เฉพาะแอดมินสูงสุดที่ตั้งยศ “แอดมิน” ได้
+            · ปรับแต้ม XP บวก/ลบได้ครั้งละไม่เกิน 10,000 และมอบฉายาให้สมาชิกได้
           </p>
         </div>
       ) : null}

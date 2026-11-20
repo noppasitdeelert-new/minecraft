@@ -2,6 +2,7 @@ import { ApiError, fail, json, optionalStr, readJson, str } from "@/lib/api";
 import { all, one, run, nowIso } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
 import { logAudit } from "@/lib/integrations";
+import { awardXp } from "@/lib/xp";
 import type { Resource } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -68,9 +69,10 @@ export async function POST(req: Request) {
       user.id,
       nowIso(),
     );
+    const xp = await awardXp(user.id, 10, "resource.create");
     await logAudit(user.id, "resource.create", `resource:${res.lastInsertRowid}`, title);
     const row = await one<Row>(`${SELECT} WHERE r.id = ?`, res.lastInsertRowid);
-    return json({ resource: row ? shape(row) : null });
+    return json({ resource: row ? shape(row) : null, xp });
   } catch (error) {
     return fail(error);
   }

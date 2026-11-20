@@ -6,8 +6,24 @@ export type PublicUser = {
   real_name: string;
   role: Role;
   avatar_color: string;
+  avatar_url?: string | null;
+  title?: string | null;
+  level?: number;
+  xp?: number;
   email?: string;
   status?: UserStatus;
+};
+
+export type LeaderboardEntry = {
+  id: number;
+  nickname: string;
+  real_name: string;
+  role: Role;
+  avatar_color: string;
+  avatar_url: string | null;
+  title: string | null;
+  xp: number;
+  message_count: number;
 };
 
 export type Channel = {
@@ -168,6 +184,10 @@ export type AdminMember = {
   role: Role;
   status: UserStatus;
   avatar_color: string;
+  avatar_url: string | null;
+  xp: number;
+  bio: string | null;
+  title: string | null;
   created_at: string;
   last_login_at: string | null;
   message_count: number;

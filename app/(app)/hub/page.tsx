@@ -10,7 +10,7 @@ export default async function HubPage() {
     <div>
       <PageHeader
         title="คลังข้อมูลของห้อง"
-        description="โหวต ชีทสรุป บอร์ดถาม-ตอบ ยืม-คืนของส่วนกลาง และอัลบั้มรูปกิจกรรม"
+        description="โหวต ชีทสรุป บอร์ดถาม-ตอบ ยืม-คืนของส่วนกลาง อัลบั้มรูปกิจกรรม และกระดานอันดับ XP"
         icon="hub"
       />
       <HubClient me={{ id: user.id, role: user.role }} canManage={canModerate(user.role)} />

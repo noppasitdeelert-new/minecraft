@@ -63,6 +63,15 @@ export const RESOURCE_CATEGORY_LABEL: Record<string, string> = {
   other: "อื่น ๆ",
 };
 
+export const XP_REASON_LABEL: Record<string, string> = {
+  "attendance.checkin": "เช็กชื่อเข้าห้อง",
+  "task.done": "ทำการบ้านเสร็จ",
+  "poll.vote": "ร่วมโหวตในห้อง",
+  "resource.create": "แชร์ชีท/ไฟล์เรียน",
+  "qa.answer": "ช่วยตอบคำถามเพื่อน",
+  "admin.adjust": "แอดมินปรับแต้ม",
+};
+
 export const DAY_LABEL: Record<number, string> = {
   0: "อาทิตย์",
   1: "จันทร์",

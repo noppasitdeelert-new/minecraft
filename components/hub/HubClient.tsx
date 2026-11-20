@@ -7,6 +7,7 @@ import ResourcesPanel from "./ResourcesPanel";
 import QaPanel from "./QaPanel";
 import InventoryPanel from "./InventoryPanel";
 import GalleryPanel from "./GalleryPanel";
+import LeaderboardPanel from "./LeaderboardPanel";
 
 const TABS = [
   { key: "polls", label: "โหวต", icon: "chart", desc: "1 บัญชี 1 เสียง" },
@@ -14,6 +15,7 @@ const TABS = [
   { key: "qa", label: "ถาม-ตอบ", icon: "help", desc: "บอร์ดช่วยการบ้าน" },
   { key: "inventory", label: "ยืม-คืนของ", icon: "box", desc: "ของส่วนกลาง" },
   { key: "gallery", label: "แกลเลอรี", icon: "camera", desc: "รูปกิจกรรม" },
+  { key: "leaderboard", label: "อันดับ XP", icon: "trophy", desc: "จัดอันดับสมาชิก" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -28,7 +30,7 @@ export default function HubClient({ me, canManage }: { me: { id: number; role: s
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -57,6 +59,7 @@ export default function HubClient({ me, canManage }: { me: { id: number; role: s
         {tab === "qa" ? <QaPanel me={me} canManage={canManage} /> : null}
         {tab === "inventory" ? <InventoryPanel me={me} canManage={canManage} /> : null}
         {tab === "gallery" ? <GalleryPanel me={me} canManage={canManage} /> : null}
+        {tab === "leaderboard" ? <LeaderboardPanel /> : null}
       </div>
     </div>
   );

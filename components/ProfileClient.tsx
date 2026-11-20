@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPatch } from "@/lib/client";
+import { fileToDataUrl } from "@/lib/image";
 import { formatDate, formatDateTime, relativeTime } from "@/lib/format";
+import { availableTitles } from "@/lib/levels";
+import { ROLE_LABEL, XP_REASON_LABEL } from "@/lib/labels";
 import type { Role } from "@/lib/labels";
 import { Icon } from "./icons";
-import { Alert, Avatar, Field, PageHeader, RoleBadge, SectionCard, Stat } from "./ui";
+import { Alert, Avatar, Field, LevelBadge, PageHeader, RoleBadge, SectionCard, Stat, TitleBadge, XpBar } from "./ui";
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f59e0b", "#10b981", "#06b6d4", "#3b82f6", "#64748b"];
+const TITLE_NONE = "";
 
 type Profile = {
   id: number;
@@ -17,19 +21,43 @@ type Profile = {
   nickname: string;
   role: Role;
   avatar_color: string;
+  avatar_url: string | null;
+  xp: number;
+  bio: string | null;
+  title: string | null;
   created_at: string;
   last_login_at: string | null;
 };
 
 type Stats = { messages: number; resources: number; votes: number; attendance: number };
+type XpEntry = { amount: number; reason: string; created_at: string };
 type Notice = { tone: "success" | "error"; text: string } | null;
 
-export default function ProfileClient({ profile, stats }: { profile: Profile; stats: Stats }) {
+export default function ProfileClient({
+  profile,
+  level,
+  grantedTitles,
+  rank,
+  recentXp,
+  stats,
+}: {
+  profile: Profile;
+  level: number;
+  grantedTitles: string[];
+  rank: number;
+  recentXp: XpEntry[];
+  stats: Stats;
+}) {
   const router = useRouter();
+  const fileInput = useRef<HTMLInputElement | null>(null);
 
   const [nickname, setNickname] = useState(profile.nickname);
   const [color, setColor] = useState(profile.avatar_color);
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? "");
+  const [bio, setBio] = useState(profile.bio ?? "");
+  const [title, setTitle] = useState(profile.title ?? TITLE_NONE);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -38,7 +66,38 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordNotice, setPasswordNotice] = useState<Notice>(null);
 
-  const dirty = nickname !== profile.nickname || color.toLowerCase() !== profile.avatar_color.toLowerCase();
+  const titles = availableTitles(level, grantedTitles);
+
+  const dirty =
+    nickname !== profile.nickname ||
+    color.toLowerCase() !== profile.avatar_color.toLowerCase() ||
+    avatarUrl !== (profile.avatar_url ?? "") ||
+    bio.trim() !== (profile.bio ?? "") ||
+    title !== (profile.title ?? "");
+
+  function reset() {
+    setNickname(profile.nickname);
+    setColor(profile.avatar_color);
+    setAvatarUrl(profile.avatar_url ?? "");
+    setBio(profile.bio ?? "");
+    setTitle(profile.title ?? TITLE_NONE);
+    setNotice(null);
+  }
+
+  async function pickAvatar(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setNotice(null);
+    try {
+      const dataUrl = await fileToDataUrl(file, 320, 0.85);
+      setAvatarUrl(dataUrl);
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "อัปโหลดรูปไม่สำเร็จ" });
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -46,7 +105,14 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
     setSaving(true);
     setNotice(null);
     try {
-      await apiPatch("/api/profile", { nickname, avatarColor: color });
+      const payload: Record<string, unknown> = {};
+      if (nickname !== profile.nickname) payload.nickname = nickname;
+      if (color.toLowerCase() !== profile.avatar_color.toLowerCase()) payload.avatarColor = color;
+      if (avatarUrl !== (profile.avatar_url ?? "")) payload.avatarUrl = avatarUrl;
+      if (bio.trim() !== (profile.bio ?? "")) payload.bio = bio.trim();
+      if (title !== (profile.title ?? "")) payload.title = title;
+
+      await apiPatch("/api/profile", payload);
       setNotice({ tone: "success", text: "บันทึกโปรไฟล์แล้ว" });
       router.refresh();
     } catch (error) {
@@ -85,7 +151,7 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
     <div>
       <PageHeader
         title="โปรไฟล์ของฉัน"
-        description="ข้อมูลสมาชิกในห้อง SKC105 — แก้ชื่อเล่น สีโปรไฟล์ และรหัสผ่านได้เอง"
+        description="ข้อมูลสมาชิกในห้อง SKC105 — รูปโปรไฟล์ คำคม ฉายา แต้ม XP และรหัสผ่าน"
         icon="user"
       />
 
@@ -94,12 +160,26 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
           <section className="card overflow-hidden">
             <div className="h-24 bg-gradient-to-r from-indigo-500/30 via-violet-500/20 to-sky-500/20" />
             <div className="-mt-9 px-5 pb-5">
-              <Avatar name={nickname || profile.nickname} color={color} size={72} className="ring-4 ring-[#0a1020]" />
+              <Avatar
+                name={nickname || profile.nickname}
+                color={color}
+                imageUrl={avatarUrl || null}
+                size={72}
+                className="ring-4 ring-[#0a1020]"
+              />
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-bold text-white">{nickname || profile.nickname}</h2>
                 <RoleBadge role={profile.role} />
+                <LevelBadge level={level} />
+                <TitleBadge title={title || null} />
               </div>
               <p className="mt-0.5 text-sm text-slate-400">{profile.real_name}</p>
+              <p className="text-[11px] text-slate-500">
+                {ROLE_LABEL[profile.role]} · อันดับ {rank} ของห้อง
+              </p>
+              {bio.trim() ? <p className="mt-2 text-sm text-slate-300 italic">“{bio.trim()}”</p> : null}
+
+              <XpBar xp={profile.xp} className="mt-4" />
 
               <dl className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-2">
@@ -121,16 +201,79 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
           </section>
 
           <div className="grid grid-cols-2 gap-3">
+            <Stat label="แต้ม XP" value={profile.xp} icon="spark" hint={`เลเวล ${level}`} />
+            <Stat label="อันดับในห้อง" value={`#${rank}`} icon="trophy" hint="เรียงตามแต้ม XP" />
             <Stat label="ข้อความในแชต" value={stats.messages} icon="chat" />
             <Stat label="ชีท/ไฟล์ที่แชร์" value={stats.resources} icon="file" />
             <Stat label="โหวตที่ร่วม" value={stats.votes} icon="chart" />
             <Stat label="เข้าเรียน/มาสาย" value={stats.attendance} icon="calendar" />
           </div>
+
+          <SectionCard title="ประวัติแต้ม XP ล่าสุด" icon="chart">
+            {recentXp.length === 0 ? (
+              <p className="text-sm text-slate-500">ยังไม่มีประวัติแต้ม — เช็กชื่อ ทำการบ้าน หรือแชร์ชีทเพื่อเริ่มสะสม</p>
+            ) : (
+              <ul className="space-y-2">
+                {recentXp.map((entry, index) => (
+                  <li
+                    key={`${entry.created_at}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-slate-200">
+                        {XP_REASON_LABEL[entry.reason] ?? XP_REASON_LABEL[entry.reason.split(":")[0]] ?? entry.reason}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{relativeTime(entry.created_at)}</p>
+                    </div>
+                    <span
+                      className={`shrink-0 font-mono text-sm font-semibold ${
+                        entry.amount >= 0 ? "text-emerald-300" : "text-rose-300"
+                      }`}
+                    >
+                      {entry.amount >= 0 ? "+" : ""}
+                      {entry.amount} XP
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
         </div>
 
         <div className="space-y-4">
           <SectionCard title="แก้ไขโปรไฟล์" icon="edit">
             <form onSubmit={save} className="space-y-3">
+              <div>
+                <span className="label">รูปโปรไฟล์</span>
+                <div className="flex items-center gap-3">
+                  <Avatar name={nickname || profile.nickname} color={color} imageUrl={avatarUrl || null} size={56} />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInput.current?.click()}
+                      className="btn btn-ghost btn-sm"
+                      disabled={uploading}
+                    >
+                      <Icon name="camera" className="size-4" />
+                      {uploading ? "กำลังย่อรูป…" : "เลือกรูป"}
+                    </button>
+                    {avatarUrl ? (
+                      <button type="button" onClick={() => setAvatarUrl("")} className="btn btn-ghost btn-sm">
+                        <Icon name="trash" className="size-4" /> ลบรูป
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => void pickAvatar(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">รูปจะถูกย่อเหลือ 320px ก่อนบันทึก (ไม่เกิน ~300 KB)</p>
+              </div>
+
               <Field label="ชื่อเล่นที่แสดงในห้อง" hint="2–24 ตัวอักษร และต้องไม่ซ้ำกับสมาชิกคนอื่น">
                 <input
                   className="input"
@@ -139,6 +282,16 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
                   maxLength={24}
                   minLength={2}
                   required
+                />
+              </Field>
+
+              <Field label="คำคม / สถานะสั้น ๆ" hint="ไม่เกิน 140 ตัวอักษร — แสดงใต้ชื่อในโปรไฟล์">
+                <input
+                  className="input"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  maxLength={140}
+                  placeholder="เช่น ขยันให้สุดแล้วหยุดพัก"
                 />
               </Field>
 
@@ -161,6 +314,19 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
                 </div>
               </div>
 
+              <div>
+                <span className="label">ฉายาที่สวมใส่</span>
+                <select className="input" value={title} onChange={(e) => setTitle(e.target.value)}>
+                  <option value={TITLE_NONE}>— ไม่ใช้ฉายา —</option>
+                  {titles.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">ปลดล็อกฉายาเพิ่มได้จากเลเวลที่สูงขึ้น หรือรับจากแอดมิน</p>
+              </div>
+
               {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}
 
               <div className="flex items-center gap-2">
@@ -169,15 +335,7 @@ export default function ProfileClient({ profile, stats }: { profile: Profile; st
                   {saving ? "กำลังบันทึก…" : "บันทึกโปรไฟล์"}
                 </button>
                 {dirty ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => {
-                      setNickname(profile.nickname);
-                      setColor(profile.avatar_color);
-                      setNotice(null);
-                    }}
-                  >
+                  <button type="button" className="btn btn-ghost" onClick={reset}>
                     ยกเลิก
                   </button>
                 ) : null}
