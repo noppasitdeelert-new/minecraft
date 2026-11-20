@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "@/lib/client";
+import { useVisiblePoll } from "@/lib/use-visible-poll";
 import type { MusicSong, MusicState } from "@/lib/types";
 import { Icon } from "./icons";
 
@@ -60,9 +61,12 @@ export default function MusicPlayerProvider({ children }: { children: React.Reac
 
   useEffect(() => {
     void refresh();
-    const timer = setInterval(refresh, 6000);
-    return () => clearInterval(timer);
   }, [refresh]);
+
+  // 20s keeps the room in sync (the play position is derived from started_at and
+  // the song changes instantly for whoever presses skip) without a request every
+  // few seconds. Hidden tabs stop polling and refresh once when they return.
+  useVisiblePoll(refresh, 20000);
 
   // Pause inside a meeting room and resume when coming back out.
   useEffect(() => {

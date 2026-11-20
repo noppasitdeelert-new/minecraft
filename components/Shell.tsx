@@ -26,6 +26,7 @@ const NAV = [
   { href: "/schedule", label: "ตารางเรียน", icon: "calendar" },
   { href: "/hub", label: "คลังห้อง", icon: "hub" },
   { href: "/music", label: "เพลงห้อง", icon: "music" },
+  { href: "/profile", label: "โปรไฟล์", icon: "user" },
 ];
 
 const ADMIN_NAV = { href: "/admin", label: "จัดการระบบ", icon: "shield" };
@@ -69,13 +70,13 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
         </nav>
 
         <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
-          <div className="flex items-center gap-2.5">
+          <Link href="/profile" className="flex items-center gap-2.5 rounded-lg transition hover:opacity-80">
             <Avatar name={user.nickname} color={user.avatar_color} size={36} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">{user.nickname}</p>
               <p className="truncate text-[11px] text-slate-500">{user.email}</p>
             </div>
-          </div>
+          </Link>
           <div className="mt-2 flex items-center justify-between">
             <RoleBadge role={user.role} />
             <button onClick={logout} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-rose-300" title="ออกจากระบบ">
@@ -102,7 +103,9 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
         </div>
         <div className="flex items-center gap-2">
           <RoleBadge role={user.role} />
-          <Avatar name={user.nickname} color={user.avatar_color} size={30} />
+          <Link href="/profile" aria-label="เปิดโปรไฟล์ของฉัน">
+            <Avatar name={user.nickname} color={user.avatar_color} size={30} />
+          </Link>
         </div>
       </header>
 

@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "@/lib/client";
+import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { formatTime, relativeTime } from "@/lib/format";
 import type { Channel, ChatMessage } from "@/lib/types";
 import { Avatar, Empty } from "./ui";
 import { RoleBadge } from "./ui";
 import { Icon } from "./icons";
+
+/** Poll fast while the room is busy, back off when nobody is writing. */
+const CHAT_ACTIVE_MS = 8000;
+const CHAT_IDLE_MS = 30000;
 
 type Props = {
   channels: Channel[];
@@ -54,28 +59,39 @@ export default function ChatClient({ channels, me }: Props) {
     void loadAll();
   }, [loadAll]);
 
+  const channelRef = useRef(activeId);
+  const quietPolls = useRef(0);
+  const [pollMs, setPollMs] = useState(CHAT_ACTIVE_MS);
+
   useEffect(() => {
-    if (!activeId) return;
-    let cancelled = false;
+    channelRef.current = activeId;
+    quietPolls.current = 0;
+    setPollMs(CHAT_ACTIVE_MS);
+  }, [activeId]);
 
-    const tick = async () => {
-      try {
-        const res = await apiGet<{ messages: ChatMessage[] }>(`/api/chat/channels/${activeId}/messages?after=${lastIdRef.current}`);
-        if (cancelled || res.messages.length === 0) return;
-        setMessages((prev) => [...prev, ...res.messages.filter((m) => !prev.some((p) => p.id === m.id))]);
-        lastIdRef.current = res.messages.at(-1)!.id;
-        if (stickToBottom.current) requestAnimationFrame(() => scrollToBottom(true));
-      } catch {
-        /* silent polling failure */
+  const poll = useCallback(async () => {
+    const channelId = activeId;
+    if (!channelId) return;
+    try {
+      const res = await apiGet<{ messages: ChatMessage[] }>(`/api/chat/channels/${channelId}/messages?after=${lastIdRef.current}`);
+      if (channelId !== channelRef.current) return;
+      if (res.messages.length === 0) {
+        quietPolls.current += 1;
+        if (quietPolls.current >= 4) setPollMs(CHAT_IDLE_MS);
+        return;
       }
-    };
-
-    const timer = setInterval(tick, 3000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
+      quietPolls.current = 0;
+      setPollMs(CHAT_ACTIVE_MS);
+      setMessages((prev) => [...prev, ...res.messages.filter((m) => !prev.some((p) => p.id === m.id))]);
+      lastIdRef.current = res.messages.at(-1)!.id;
+      if (stickToBottom.current) requestAnimationFrame(() => scrollToBottom(true));
+    } catch {
+      quietPolls.current += 1;
+      if (quietPolls.current >= 6) setPollMs(CHAT_IDLE_MS);
+    }
   }, [activeId, scrollToBottom]);
+
+  useVisiblePoll(poll, pollMs, Boolean(activeId));
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
@@ -87,6 +103,8 @@ export default function ChatClient({ channels, me }: Props) {
       const res = await apiPost<{ message: ChatMessage }>(`/api/chat/channels/${activeId}/messages`, { body: text });
       setMessages((prev) => [...prev, res.message]);
       lastIdRef.current = res.message.id;
+      quietPolls.current = 0;
+      setPollMs(CHAT_ACTIVE_MS);
       setDraft("");
       requestAnimationFrame(() => scrollToBottom(true));
     } catch (err) {
@@ -149,7 +167,10 @@ export default function ChatClient({ channels, me }: Props) {
             </h2>
             <p className="truncate text-[11px] text-slate-500">{active?.description ?? "พูดคุยกับเพื่อนในห้อง"}</p>
           </div>
-          <span className="hidden items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300 sm:flex">
+          <span
+            className="hidden items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300 sm:flex"
+            title="อัปเดตทุก 8 วินาทีเมื่อมีบทสนทนา เว้นช่วงเมื่อห้องเงียบ และหยุดเมื่อสลับแท็บ"
+          >
             <span className="size-1.5 rounded-full bg-emerald-400" /> อัปเดตอัตโนมัติ
           </span>
         </header>
