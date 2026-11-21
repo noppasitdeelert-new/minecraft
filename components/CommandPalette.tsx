@@ -30,6 +30,7 @@ const SHORTCUTS: PaletteResult[] = [
   { kind: "schedule", id: 0, title: "ตารางเรียนและตารางเวร", subtitle: "ทั้งสัปดาห์", href: "/schedule" },
   { kind: "resource", id: 0, title: "คลังชีทและไฟล์เรียน", subtitle: "คลังห้อง", href: "/hub#resources" },
   { kind: "member", id: 0, title: "ทำเนียบสมาชิก", subtitle: "ทุกคนในห้อง", href: "/members" },
+  { kind: "resource", id: 0, title: "ตัวช่วยลิงก์คีย์", subtitle: "ตรวจลิงก์ + คัดลอกคีย์", href: "/key-link" },
 ];
 
 export default function CommandPalette() {

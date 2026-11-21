@@ -85,7 +85,7 @@ async function initialise(): Promise<D1Database> {
  * Schema version. Bump it whenever SCHEMA changes so existing databases run the
  * statements again; unchanged databases skip the whole block (one cheap query).
  */
-const SCHEMA_VERSION = "2026-11-21.2";
+const SCHEMA_VERSION = "2026-11-21.3";
 
 /** Columns added after the first release — existing databases need ALTER TABLE. */
 const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }> = [
@@ -577,6 +577,21 @@ CREATE TABLE IF NOT EXISTS user_badges (
   UNIQUE (user_id, code)
 );
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
+
+CREATE TABLE IF NOT EXISTS key_link_jobs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  url          TEXT NOT NULL,
+  host         TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'share',
+  status       TEXT NOT NULL DEFAULT 'unlocked',
+  key_code     TEXT,
+  share_id     INTEGER REFERENCES key_shares(id) ON DELETE SET NULL,
+  detail       TEXT,
+  created_at   TEXT NOT NULL,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_key_link_jobs_user ON key_link_jobs(user_id, id);
 `;
 
 /* ------------------------------------------------------------------ */

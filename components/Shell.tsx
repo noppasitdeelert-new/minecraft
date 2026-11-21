@@ -31,6 +31,7 @@ const NAV = [
   { href: "/music", label: "เพลงห้อง", icon: "music" },
   { href: "/members", label: "สมาชิกในห้อง", icon: "users" },
   { href: "/keys", label: "คีย์ห้อง", icon: "key" },
+  { href: "/key-link", label: "ตัวช่วยลิงก์คีย์", icon: "link" },
   { href: "/profile", label: "โปรไฟล์", icon: "user" },
 ];
 

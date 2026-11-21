@@ -15,6 +15,7 @@ const TABS = [
   { key: "keys", label: "คีย์ห้อง", icon: "key" },
   { key: "members", label: "สมาชิกและยศ", icon: "users" },
   { key: "settings", label: "การแจ้งเตือน", icon: "bell" },
+  { key: "keylink", label: "ลิงก์คีย์", icon: "link" },
   { key: "integrations", label: "API & Webhook", icon: "webhook" },
   { key: "music", label: "เพลง", icon: "music" },
   { key: "audit", label: "Audit Logs", icon: "shield" },
@@ -67,6 +68,18 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
     appUrl: string;
   } | null>(null);
 
+  // key link helper
+  const [keylink, setKeylink] = useState<{
+    enabled: boolean;
+    dailyLimit: number;
+    extraDomains: string[];
+    defaults: { dailyLimit: number; maxLimit: number; maxDomains: number };
+    stats: { today: number; total: number; users: number; unlocked: number };
+    pool: { available: number; unassigned: number };
+    recent: Array<{ id: number; nickname: string; host: string; status: string; kind: string; created_at: string }>;
+  } | null>(null);
+  const [keylinkDomains, setKeylinkDomains] = useState("");
+
   // audit
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
@@ -106,6 +119,20 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
     setSettings(await apiGet("/api/admin/settings"));
   }, []);
 
+  const loadKeyLink = useCallback(async () => {
+    const res = await apiGet<{
+      enabled: boolean;
+      dailyLimit: number;
+      extraDomains: string[];
+      defaults: { dailyLimit: number; maxLimit: number; maxDomains: number };
+      stats: { today: number; total: number; users: number; unlocked: number };
+      pool: { available: number; unassigned: number };
+      recent: Array<{ id: number; nickname: string; host: string; status: string; kind: string; created_at: string }>;
+    }>("/api/admin/key-link");
+    setKeylink(res);
+    setKeylinkDomains(res.extraDomains.join(", "));
+  }, []);
+
   const loadLogs = useCallback(async () => {
     const res = await apiGet<{ logs: AuditLog[] }>("/api/admin/audit?limit=200");
     setLogs(res.logs);
@@ -126,6 +153,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
         if (tab === "keys") await loadKeys();
         if (tab === "members") await loadMembers();
         if (tab === "settings") await loadSettings();
+        if (tab === "keylink") await loadKeyLink();
         if (tab === "integrations") await loadIntegrations();
         if (tab === "music") await loadMusic();
         if (tab === "audit") await loadLogs();
@@ -133,7 +161,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
         setError(err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ");
       }
     })();
-  }, [tab, loadKeys, loadMembers, loadSettings, loadLogs, loadIntegrations, loadMusic]);
+  }, [tab, loadKeys, loadMembers, loadSettings, loadKeyLink, loadLogs, loadIntegrations, loadMusic]);
 
   async function generateKeys(event: React.FormEvent) {
     event.preventDefault();
@@ -201,6 +229,23 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
       setNotice("บันทึกการตั้งค่า Webhook แล้ว");
     } catch (err) {
       setError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    }
+  }
+
+  async function saveKeyLink(event: React.FormEvent) {
+    event.preventDefault();
+    if (!keylink) return;
+    setError(null);
+    try {
+      await apiPut("/api/admin/key-link", {
+        enabled: keylink.enabled,
+        dailyLimit: keylink.dailyLimit,
+        domains: keylinkDomains,
+      });
+      await loadKeyLink();
+      setNotice("บันทึกการตั้งค่าตัวช่วยลิงก์คีย์แล้ว");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "บันทึกการตั้งค่าไม่สำเร็จ");
     }
   }
 
@@ -684,6 +729,112 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
             บัญชีแอดมินสูงสุดแก้ไขไม่ได้ · การระงับบัญชีจะตัด session ทั้งหมดทันที · เฉพาะแอดมินสูงสุดที่ตั้งยศ “แอดมิน” ได้
             · ปรับแต้ม XP บวก/ลบได้ครั้งละไม่เกิน 10,000 และมอบฉายาให้สมาชิกได้
           </p>
+        </div>
+      ) : null}
+
+      {/* ─── Key link helper ─── */}
+      {tab === "keylink" && keylink ? (
+        <div className="space-y-3">
+          <form onSubmit={saveKeyLink} className="card space-y-3 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Icon name="link" className="size-4 text-indigo-300" /> ตัวช่วยลิงก์คีย์ (Key Link Helper)
+            </h3>
+
+            <label className="flex items-start gap-2.5 rounded-xl border border-white/8 bg-white/[0.025] p-3">
+              <input
+                type="checkbox"
+                checked={keylink.enabled}
+                onChange={(e) => setKeylink({ ...keylink, enabled: e.target.checked })}
+                className="mt-0.5 size-4 accent-indigo-500"
+              />
+              <span>
+                <span className="block text-sm text-slate-100">เปิดให้สมาชิกใช้งาน</span>
+                <span className="block text-[11px] text-slate-500">
+                  ปิดแล้วทุกคนจะตรวจ/ปลดล็อกลิงก์ไม่ได้ทันที แต่ประวัติและคีย์ที่เคยได้ยังอยู่ครบ
+                </span>
+              </span>
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label>
+                <span className="label">โควตาต่อคนต่อวัน (1–{keylink.defaults.maxLimit})</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={keylink.defaults.maxLimit}
+                  value={keylink.dailyLimit}
+                  onChange={(e) => setKeylink({ ...keylink, dailyLimit: Number(e.target.value) })}
+                  className="input"
+                />
+              </label>
+              <label>
+                <span className="label">โดเมนที่อนุญาตเพิ่มเติม (คั่นด้วย ,)</span>
+                <input
+                  value={keylinkDomains}
+                  onChange={(e) => setKeylinkDomains(e.target.value)}
+                  className="input font-mono text-xs"
+                  placeholder="example.com, keys.example.org"
+                />
+              </label>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              โดเมนของเว็บนี้ถูกอนุญาตอยู่แล้ว · ลิงก์ภายนอกตรวจสอบได้แต่ระบบจะไม่ออกรหัสคีย์ · สูงสุด{" "}
+              {keylink.defaults.maxDomains} โดเมน
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary btn-sm">บันทึกการตั้งค่า</button>
+              <button type="button" onClick={() => void loadKeyLink()} className="btn btn-ghost btn-sm">
+                รีโหลด
+              </button>
+            </div>
+          </form>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="card p-4">
+              <p className="text-xs text-slate-400">ปลดล็อกวันนี้</p>
+              <p className="mt-1 text-2xl font-bold text-indigo-300">{keylink.stats.today}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-slate-400">ปลดล็อกทั้งหมด</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-300">{keylink.stats.unlocked}</p>
+              <p className="mt-1 text-[11px] text-slate-500">จากทั้งหมด {keylink.stats.total} รายการ · {keylink.stats.users} คน</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-slate-400">คีย์ว่างในคลัง</p>
+              <p className="mt-1 text-2xl font-bold text-amber-300">{keylink.pool.available}</p>
+              <p className="mt-1 text-[11px] text-slate-500">ยังไม่ถูกจ่ายผ่านตัวช่วย {keylink.pool.unassigned} ใบ</p>
+            </div>
+          </div>
+
+          <div className="card p-4">
+            <h3 className="text-sm font-semibold text-white">รายการล่าสุด</h3>
+            {keylink.recent.length === 0 ? (
+              <p className="mt-2 text-xs text-slate-500">ยังไม่มีการใช้งานตัวช่วยลิงก์คีย์</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-white/5 text-xs">
+                {keylink.recent.map((row) => (
+                  <li key={row.id} className="flex flex-wrap items-center gap-2 py-2">
+                    <span className="text-slate-200">{row.nickname}</span>
+                    <span className="font-mono text-[10px] text-slate-500">{row.host}</span>
+                    <span
+                      className={`badge ${
+                        row.status === "unlocked"
+                          ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/30"
+                          : "bg-sky-500/15 text-sky-300 ring-sky-400/30"
+                      }`}
+                    >
+                      {row.status === "unlocked" ? "ปลดล็อก" : "ตรวจสอบ"}
+                    </span>
+                    <span className="ml-auto text-[10px] text-slate-500">{relativeTime(row.created_at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-[11px] text-slate-500">
+              ทุกครั้งถูกบันทึกใน Audit Logs (keylink.unlock / keylink.validate / keylink.settings) · ไม่มีการเก็บรหัสคีย์เต็มในบันทึก
+            </p>
+          </div>
         </div>
       ) : null}
 
