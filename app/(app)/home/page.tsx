@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { all, one } from "@/lib/db";
 import { canModerate, requireUser } from "@/lib/auth";
-import { formatDateShort, formatDateTime, formatClockTime, dueLabel, currentWeekday, weekdayName, todayBangkok } from "@/lib/format";
-import { DAY_LABEL, ROLE_LABEL } from "@/lib/labels";
+import {
+  formatDateShort,
+  formatDateTime,
+  formatClockTime,
+  dueLabel,
+  currentWeekday,
+  weekdayName,
+  todayBangkok,
+  relativeTime,
+} from "@/lib/format";
+import { ATTENDANCE_LABEL, DAY_LABEL, ROLE_LABEL } from "@/lib/labels";
 import { levelFromXp } from "@/lib/levels";
 import AttendanceWidget from "@/components/AttendanceWidget";
 import AnnouncementBoard from "@/components/AnnouncementBoard";
@@ -81,6 +90,77 @@ export default async function HomePage() {
       "SELECT id, nickname, role, avatar_color, avatar_url, title, xp FROM users WHERE status = 'active' ORDER BY xp DESC LIMIT 5",
     ),
   ]);
+
+  // ความเคลื่อนไหวล่าสุดของห้อง — รวมหลายแหล่งแล้วเรียงตามเวลา
+  const [recentMessages, recentAnnouncements, recentDone, recentAttendance, recentResources] = await Promise.all([
+    all<{ id: number; body: string; created_at: string; nickname: string; channel: string }>(
+      `SELECT m.id, m.body, m.created_at, u.nickname, c.name AS channel
+         FROM messages m JOIN users u ON u.id = m.user_id JOIN channels c ON c.id = m.channel_id
+        ORDER BY m.id DESC LIMIT 3`,
+    ),
+    all<{ id: number; title: string; created_at: string; nickname: string }>(
+      `SELECT a.id, a.title, a.created_at, u.nickname FROM announcements a JOIN users u ON u.id = a.author_id
+        ORDER BY a.id DESC LIMIT 2`,
+    ),
+    all<{ id: number; title: string; updated_at: string; nickname: string }>(
+      `SELECT t.id, t.title, ts.updated_at, u.nickname
+         FROM task_status ts JOIN tasks t ON t.id = ts.task_id JOIN users u ON u.id = ts.user_id
+        WHERE ts.status = 'done' ORDER BY ts.updated_at DESC LIMIT 3`,
+    ),
+    all<{ id: number; status: string; created_at: string; nickname: string }>(
+      `SELECT a.id, a.status, a.created_at, u.nickname FROM attendance a JOIN users u ON u.id = a.user_id
+        ORDER BY a.created_at DESC LIMIT 3`,
+    ),
+    all<{ id: number; title: string; created_at: string; nickname: string }>(
+      `SELECT r.id, r.title, r.created_at, u.nickname FROM resources r JOIN users u ON u.id = r.created_by
+        ORDER BY r.id DESC LIMIT 2`,
+    ),
+  ]);
+
+  const activity = [
+    ...recentMessages.map((row) => ({
+      key: `m-${row.id}`,
+      icon: "chat",
+      when: row.created_at,
+      who: row.nickname,
+      text: `${row.channel}: ${row.body.slice(0, 70)}`,
+      href: "/chat",
+    })),
+    ...recentAnnouncements.map((row) => ({
+      key: `a-${row.id}`,
+      icon: "bell",
+      when: row.created_at,
+      who: row.nickname,
+      text: `ประกาศ “${row.title}”`,
+      href: "/home#announcements",
+    })),
+    ...recentDone.map((row) => ({
+      key: `t-${row.id}-${row.updated_at}`,
+      icon: "check",
+      when: row.updated_at,
+      who: row.nickname,
+      text: `ส่งงาน “${row.title}” แล้ว`,
+      href: "/tasks",
+    })),
+    ...recentAttendance.map((row) => ({
+      key: `at-${row.id}`,
+      icon: "users",
+      when: row.created_at,
+      who: row.nickname,
+      text: `แจ้งสถานะ ${ATTENDANCE_LABEL[row.status] ?? row.status}`,
+      href: "/schedule#attendance",
+    })),
+    ...recentResources.map((row) => ({
+      key: `r-${row.id}`,
+      icon: "file",
+      when: row.created_at,
+      who: row.nickname,
+      text: `แชร์ “${row.title}”`,
+      href: "/hub#resources",
+    })),
+  ]
+    .sort((a, b) => (a.when < b.when ? 1 : -1))
+    .slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -195,6 +275,33 @@ export default async function HomePage() {
                 );
               })}
             </ul>
+          </SectionCard>
+
+          <SectionCard title="ความเคลื่อนไหวล่าสุด" icon="chart">
+            {activity.length === 0 ? (
+              <Empty icon="chat" title="ยังไม่มีความเคลื่อนไหว" hint="เริ่มแชตหรือเช็กชื่อเพื่อให้ห้องคึกคัก" />
+            ) : (
+              <ul className="space-y-1.5">
+                {activity.map((item) => (
+                  <li key={item.key}>
+                    <Link
+                      href={item.href}
+                      className="flex items-start gap-2.5 rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 transition hover:border-indigo-400/25 hover:bg-white/[0.05]"
+                    >
+                      <span className="mt-0.5 shrink-0 rounded-lg bg-indigo-500/10 p-1 text-indigo-300">
+                        <Icon name={item.icon} className="size-3.5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs text-slate-200">{item.text}</span>
+                        <span className="block text-[10px] text-slate-500">
+                          {item.who} · {relativeTime(item.when)}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SectionCard>
         </div>
 

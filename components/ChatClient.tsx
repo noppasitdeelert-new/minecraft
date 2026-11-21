@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiDelete, apiGet, apiPost } from "@/lib/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/client";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
 import { formatTime, relativeTime } from "@/lib/format";
 import type { Channel, ChatMessage } from "@/lib/types";
@@ -12,6 +12,8 @@ import { Icon } from "./icons";
 /** Poll fast while the room is busy, back off when nobody is writing. */
 const CHAT_ACTIVE_MS = 8000;
 const CHAT_IDLE_MS = 30000;
+const EMOJIS = ["👍", "❤️", "😂", "🔥", "✅", "👀"];
+const EDIT_WINDOW_MS = 60 * 60 * 1000;
 
 type Props = {
   channels: Channel[];
@@ -25,6 +27,9 @@ export default function ChatClient({ channels, me }: Props) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emojiFor, setEmojiFor] = useState<number | null>(null);
+  const [editing, setEditing] = useState<{ id: number; body: string } | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const lastIdRef = useRef(0);
   const stickToBottom = useRef(true);
@@ -53,6 +58,12 @@ export default function ChatClient({ channels, me }: Props) {
       setLoading(false);
     }
   }, [activeId, scrollToBottom]);
+
+  // เปิดจากลิงก์ ?channel=<id> (เช่นผลค้นหาจาก Command Palette)
+  useEffect(() => {
+    const wanted = Number(new URLSearchParams(window.location.search).get("channel") || 0);
+    if (wanted && channels.some((c) => c.id === wanted)) setActiveId(wanted);
+  }, [channels]);
 
   useEffect(() => {
     stickToBottom.current = true;
@@ -111,6 +122,37 @@ export default function ChatClient({ channels, me }: Props) {
       setError(err instanceof Error ? err.message : "ส่งข้อความไม่สำเร็จ");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function react(id: number, emoji: string) {
+    setBusyId(id);
+    try {
+      const res = await apiPost<{ reactions: ChatMessage["reactions"] }>(`/api/chat/messages/${id}/reactions`, { emoji });
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, reactions: res.reactions } : m)));
+      setEmojiFor(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "กดรีแอ็กชันไม่สำเร็จ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    const text = editing.body.trim();
+    if (!text) return;
+    setBusyId(editing.id);
+    try {
+      const res = await apiPatch<{ body: string; edited_at: string }>(`/api/chat/messages/${editing.id}`, { body: text });
+      setMessages((prev) =>
+        prev.map((m) => (m.id === editing.id ? { ...m, body: res.body, edited_at: res.edited_at } : m)),
+      );
+      setEditing(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "แก้ไขข้อความไม่สำเร็จ");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -224,24 +266,102 @@ export default function ChatClient({ channels, me }: Props) {
                         <span className="text-[10px] text-slate-500" title={relativeTime(m.created_at)}>
                           {formatTime(m.created_at)}
                         </span>
-                        {mine || canModerate ? (
-                          <button
-                            onClick={() => remove(m.id)}
-                            className="ml-auto rounded p-0.5 text-slate-600 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
-                            title="ลบข้อความ"
-                          >
-                            <Icon name="trash" className="size-3.5" />
-                          </button>
-                        ) : null}
+                        <span className="ml-auto flex items-center gap-0.5">
+                          {mine && Date.now() - new Date(m.created_at).getTime() < EDIT_WINDOW_MS ? (
+                            <button
+                              onClick={() => setEditing({ id: m.id, body: m.body })}
+                              className="rounded p-0.5 text-slate-600 opacity-0 transition group-hover:opacity-100 hover:text-indigo-300"
+                              title="แก้ไขข้อความ"
+                            >
+                              <Icon name="edit" className="size-3.5" />
+                            </button>
+                          ) : null}
+                          {mine || canModerate ? (
+                            <button
+                              onClick={() => remove(m.id)}
+                              className="rounded p-0.5 text-slate-600 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
+                              title="ลบข้อความ"
+                            >
+                              <Icon name="trash" className="size-3.5" />
+                            </button>
+                          ) : null}
+                        </span>
                       </div>
                     ) : null}
-                    <p
-                      className={`inline-block max-w-full rounded-2xl px-3 py-1.5 text-sm break-words whitespace-pre-wrap ${
-                        mine ? "bg-indigo-500/20 text-indigo-50" : "bg-white/[0.05] text-slate-200"
-                      }`}
-                    >
-                      {m.body}
-                    </p>
+                    {editing?.id === m.id ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          value={editing.body}
+                          onChange={(e) => setEditing({ id: m.id, body: e.target.value })}
+                          rows={2}
+                          maxLength={2000}
+                          className="input min-h-16 text-sm"
+                          autoFocus
+                        />
+                        <div className="flex gap-1.5">
+                          <button onClick={() => void saveEdit()} disabled={busyId === m.id} className="btn btn-primary btn-sm">
+                            บันทึก
+                          </button>
+                          <button onClick={() => setEditing(null)} className="btn btn-ghost btn-sm">
+                            ยกเลิก
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p
+                          className={`inline-block max-w-full rounded-2xl px-3 py-1.5 text-sm break-words whitespace-pre-wrap ${
+                            mine ? "bg-indigo-500/20 text-indigo-50" : "bg-white/[0.05] text-slate-200"
+                          }`}
+                        >
+                          {m.body}
+                          {m.edited_at ? (
+                            <span className="ml-1.5 align-baseline text-[10px] text-slate-500">(แก้ไขแล้ว)</span>
+                          ) : null}
+                        </p>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {m.reactions.map((reaction) => (
+                            <button
+                              key={reaction.emoji}
+                              onClick={() => void react(m.id, reaction.emoji)}
+                              disabled={busyId === m.id}
+                              className={`rounded-full px-2 py-0.5 text-[11px] transition ${
+                                reaction.mine
+                                  ? "bg-indigo-500/25 text-indigo-100 ring-1 ring-inset ring-indigo-400/40"
+                                  : "bg-white/[0.06] text-slate-300 hover:bg-white/10"
+                              }`}
+                              title={reaction.mine ? "เอาอิโมจินี้ออก" : "เพิ่มอิโมจินี้"}
+                            >
+                              {reaction.emoji} {reaction.count}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setEmojiFor(emojiFor === m.id ? null : m.id)}
+                            className="rounded-full border border-white/10 px-1.5 py-0.5 text-[11px] text-slate-500 transition hover:border-indigo-400/40 hover:text-slate-200"
+                            title="เพิ่มรีแอ็กชัน"
+                          >
+                            + 😊
+                          </button>
+                        </div>
+
+                        {emojiFor === m.id ? (
+                          <div className="mt-1 flex w-fit gap-0.5 rounded-xl border border-white/10 bg-slate-950/60 px-1.5 py-1">
+                            {EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => void react(m.id, emoji)}
+                                disabled={busyId === m.id}
+                                className="rounded-lg px-1.5 py-1 text-base transition hover:bg-white/10"
+                                aria-label={`รีแอ็กชัน ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

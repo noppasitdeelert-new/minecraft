@@ -101,11 +101,16 @@ export default function ScheduleClient({ canManage, currentUserId }: { canManage
             </button>
           ))}
         </div>
-        {tab !== "attendance" ? (
-          <button onClick={() => setComposer((v) => !v)} className="btn btn-ghost btn-sm ml-auto">
-            <Icon name="plus" className="size-3.5" /> เพิ่มรายการ
-          </button>
-        ) : null}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <a href="/api/schedule/ics" download className="btn btn-ghost btn-sm" title="เพิ่มตารางนี้ในปฏิทินมือถือ/คอมพิวเตอร์">
+            <Icon name="download" className="size-3.5" /> ปฏิทิน .ics
+          </a>
+          {tab !== "attendance" ? (
+            <button onClick={() => setComposer((v) => !v)} className="btn btn-ghost btn-sm">
+              <Icon name="plus" className="size-3.5" /> เพิ่มรายการ
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {composer ? (

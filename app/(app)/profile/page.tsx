@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/auth";
 import { all, one } from "@/lib/db";
 import { levelFromXp } from "@/lib/levels";
 import { grantedTitles } from "@/lib/xp";
+import { syncBadges } from "@/lib/badges";
+import { attendanceStats } from "@/lib/attendance";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "โปรไฟล์ · SKC105 Room Hub" };
@@ -12,7 +14,7 @@ export default async function ProfilePage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [messages, resources, votes, attendance, granted, recentXp, rank] = await Promise.all([
+  const [messages, resources, votes, attendance, granted, recentXp, rank, badges, attendanceSummary] = await Promise.all([
     one<{ n: number }>("SELECT COUNT(*) AS n FROM messages WHERE user_id = ?", user.id),
     one<{ n: number }>("SELECT COUNT(*) AS n FROM resources WHERE created_by = ?", user.id),
     one<{ n: number }>("SELECT COUNT(*) AS n FROM poll_votes WHERE user_id = ?", user.id),
@@ -26,6 +28,8 @@ export default async function ProfilePage() {
       `SELECT COUNT(*) + 1 AS position FROM users WHERE status = 'active' AND xp > ?`,
       user.xp,
     ),
+    syncBadges(user.id),
+    attendanceStats(user.id),
   ]);
 
   return (
@@ -48,6 +52,8 @@ export default async function ProfilePage() {
       grantedTitles={granted}
       rank={rank?.position ?? 1}
       recentXp={recentXp}
+      badges={badges}
+      attendanceSummary={attendanceSummary}
       stats={{
         messages: messages?.n ?? 0,
         resources: resources?.n ?? 0,

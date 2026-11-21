@@ -3,6 +3,7 @@ import { one, run, nowIso, randomAvatarColor, hashPassword } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
 import { autoRefillInviteKeys } from "@/lib/keys";
+import { clientIp, rateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,9 @@ export async function POST(req: Request) {
     const realName = str(body.realName, "ชื่อจริง", 80);
     const nickname = str(body.nickname, "ชื่อเล่น", 24);
     const password = str(body.password, "รหัสผ่าน", 200);
+
+    // กันการไล่ลองคีย์ทีละใบ: 10 ครั้ง / 15 นาที ต่อ IP
+    await rateLimit(`register-ip:${clientIp(req)}`, 10, 900);
 
     if (!EMAIL_RE.test(email)) throw new ApiError(400, "รูปแบบอีเมลไม่ถูกต้อง");
     if (realName.length < 2) throw new ApiError(400, "กรุณากรอกชื่อจริงให้ครบถ้วน");

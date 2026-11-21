@@ -2,6 +2,7 @@ import { ApiError, fail, json, readJson, str } from "@/lib/api";
 import { one, run, nowIso, verifyPassword } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { logAudit } from "@/lib/integrations";
+import { clientIp, rateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,10 @@ export async function POST(req: Request) {
     const body = await readJson<{ email?: string; password?: string }>(req);
     const email = str(body.email, "อีเมล", 160).toLowerCase();
     const password = str(body.password, "รหัสผ่าน", 200);
+
+    // กันการเดารหัสผ่าน: 10 ครั้ง / 15 นาที ต่อ IP และต่ออีเมล
+    await rateLimit(`login-ip:${clientIp(req)}`, 20, 900);
+    await rateLimit(`login-email:${email}`, 10, 900);
 
     const user = await one<{
       id: number;

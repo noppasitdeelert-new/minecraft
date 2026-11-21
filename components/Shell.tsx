@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "./icons";
 import { Avatar, RoleBadge } from "./ui";
 import NotificationPrompt from "./NotificationPrompt";
+import CommandPalette from "./CommandPalette";
 import MusicPlayerProvider from "./MusicPlayerProvider";
 import type { Role } from "@/lib/labels";
 
@@ -28,6 +29,8 @@ const NAV = [
   { href: "/schedule", label: "ตารางเรียน", icon: "calendar" },
   { href: "/hub", label: "คลังห้อง", icon: "hub" },
   { href: "/music", label: "เพลงห้อง", icon: "music" },
+  { href: "/members", label: "สมาชิกในห้อง", icon: "users" },
+  { href: "/keys", label: "คีย์ห้อง", icon: "key" },
   { href: "/profile", label: "โปรไฟล์", icon: "user" },
 ];
 
@@ -71,6 +74,10 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
           ))}
         </nav>
 
+        <div className="mb-3 hidden lg:block">
+          <CommandPalette />
+        </div>
+
         <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
           <Link href="/profile" className="flex items-center gap-2.5 rounded-lg transition hover:opacity-80">
             <Avatar name={user.nickname} color={user.avatar_color} imageUrl={user.avatar_url} size={36} />
@@ -104,6 +111,7 @@ export default function Shell({ user, children }: { user: ShellUser; children: R
           <span className="text-sm font-semibold text-white">SKC105</span>
         </div>
         <div className="flex items-center gap-2">
+          <CommandPalette />
           <RoleBadge role={user.role} />
           <Link href="/profile" aria-label="เปิดโปรไฟล์ของฉัน">
             <Avatar name={user.nickname} color={user.avatar_color} imageUrl={user.avatar_url} size={30} />

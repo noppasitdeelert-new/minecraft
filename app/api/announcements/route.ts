@@ -8,6 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SELECT = `SELECT a.id, a.title, a.body, a.pinned, a.important, a.created_at,
+                       (SELECT COUNT(*) FROM announcement_reads r WHERE r.announcement_id = a.id) AS read_count,
+                       (SELECT COUNT(*) FROM users WHERE status = 'active') AS reader_total,
+                       EXISTS(SELECT 1 FROM announcement_reads r2 WHERE r2.announcement_id = a.id AND r2.user_id = ?) AS read_by_me,
                        u.id AS author_id, u.nickname, u.real_name, u.role, u.avatar_color
                   FROM announcements a JOIN users u ON u.id = a.author_id`;
 
@@ -23,6 +26,9 @@ type Row = {
   real_name: string;
   role: Announcement["author"]["role"];
   avatar_color: string;
+  read_count: number;
+  reader_total: number;
+  read_by_me: number;
 };
 
 function shape(row: Row): Announcement {
@@ -33,6 +39,9 @@ function shape(row: Row): Announcement {
     pinned: row.pinned,
     important: row.important,
     created_at: row.created_at,
+    read_count: Number(row.read_count ?? 0),
+    reader_total: Number(row.reader_total ?? 0),
+    read_by_me: Boolean(row.read_by_me),
     author: {
       id: row.author_id,
       nickname: row.nickname,
@@ -45,8 +54,8 @@ function shape(row: Row): Announcement {
 
 export async function GET() {
   try {
-    await requireUser();
-    const rows = await all<Row>(`${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT 50`);
+    const user = await requireUser();
+    const rows = await all<Row>(`${SELECT} ORDER BY a.pinned DESC, a.created_at DESC LIMIT 50`, user.id);
     return json({ announcements: rows.map(shape) });
   } catch (error) {
     return fail(error);
@@ -81,7 +90,7 @@ export async function POST(req: Request) {
       void notifyChannels(`📢 ประกาศใหม่จาก ${user.nickname}: **${title}**\n${text.slice(0, 1200)}`);
     }
 
-    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, res.lastInsertRowid);
+    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, user.id, res.lastInsertRowid);
     return json({ announcement: row ? shape(row) : null });
   } catch (error) {
     return fail(error);
@@ -106,7 +115,7 @@ export async function PATCH(req: Request) {
     if (typeof body.body === "string") await run("UPDATE announcements SET body = ?, updated_at = ? WHERE id = ?", str(body.body, "เนื้อหา", 8000), nowIso(), id);
 
     await logAudit(user.id, "announcement.update", `announcement:${id}`, optionalStr(body.title, 140) ?? existing.title);
-    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, id);
+    const row = await one<Row>(`${SELECT} WHERE a.id = ?`, user.id, id);
     return json({ announcement: row ? shape(row) : null });
   } catch (error) {
     return fail(error);

@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-/** Applied to every response: browsers keep using HTTPS and cannot sniff types. */
+/**
+ * Applied to every response.
+ * - HSTS + preload: เบราว์เซอร์จะไม่ยอมกลับไปใช้ http อีก
+ * - upgrade-insecure-requests: กันรูป/สคริปต์ที่ฝังมาแบบ http ถูกโหลดแบบไม่เข้ารหัส
+ */
 const securityHeaders = [
-  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
+  { key: "Content-Security-Policy", value: "upgrade-insecure-requests" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(self)" },
 ];
 
 const nextConfig: NextConfig = {

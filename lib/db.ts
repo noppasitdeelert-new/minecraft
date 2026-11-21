@@ -85,7 +85,7 @@ async function initialise(): Promise<D1Database> {
  * Schema version. Bump it whenever SCHEMA changes so existing databases run the
  * statements again; unchanged databases skip the whole block (one cheap query).
  */
-const SCHEMA_VERSION = "2026-11-20.1";
+const SCHEMA_VERSION = "2026-11-21.2";
 
 /** Columns added after the first release — existing databases need ALTER TABLE. */
 const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }> = [
@@ -93,6 +93,7 @@ const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }>
   { table: "users", column: "bio", statement: "ALTER TABLE users ADD COLUMN bio TEXT" },
   { table: "users", column: "title", statement: "ALTER TABLE users ADD COLUMN title TEXT" },
   { table: "users", column: "avatar_url", statement: "ALTER TABLE users ADD COLUMN avatar_url TEXT" },
+  { table: "messages", column: "edited_at", statement: "ALTER TABLE messages ADD COLUMN edited_at TEXT" },
 ];
 
 async function ensureColumns(db: D1Database): Promise<void> {
@@ -498,6 +499,84 @@ CREATE TABLE IF NOT EXISTS music_queue (
   played_at  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_music_queue_status ON music_queue(status, id);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  bucket   TEXT PRIMARY KEY,
+  hits     INTEGER NOT NULL DEFAULT 0,
+  reset_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS key_shares (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  token          TEXT NOT NULL UNIQUE,
+  label          TEXT,
+  max_uses       INTEGER NOT NULL DEFAULT 10,
+  uses           INTEGER NOT NULL DEFAULT 0,
+  expires_at     TEXT NOT NULL,
+  revoked_at     TEXT,
+  created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at     TEXT NOT NULL,
+  last_viewed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS key_requests (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose    TEXT,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  code       TEXT,
+  handled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  handled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_key_requests_status ON key_requests(status, id);
+
+CREATE TABLE IF NOT EXISTS message_reactions (
+  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji      TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (message_id, user_id, emoji)
+);
+
+CREATE TABLE IF NOT EXISTS announcement_reads (
+  announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      TEXT NOT NULL,
+  PRIMARY KEY (announcement_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS rewards (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  description TEXT,
+  cost        INTEGER NOT NULL DEFAULT 50,
+  stock       INTEGER,
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reward_redemptions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  reward_id  INTEGER NOT NULL REFERENCES rewards(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  cost       INTEGER NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  handled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  handled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_reward_redemptions_status ON reward_redemptions(status, id);
+
+CREATE TABLE IF NOT EXISTS user_badges (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code      TEXT NOT NULL,
+  earned_at TEXT NOT NULL,
+  UNIQUE (user_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id);
 `;
 
 /* ------------------------------------------------------------------ */

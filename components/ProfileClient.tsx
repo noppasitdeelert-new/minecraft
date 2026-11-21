@@ -31,6 +31,22 @@ type Profile = {
 
 type Stats = { messages: number; resources: number; votes: number; attendance: number };
 type XpEntry = { amount: number; reason: string; created_at: string };
+type BadgeProp = { code: string; label: string; emoji: string; hint: string; earned_at: string };
+type AttendanceSummary = {
+  streak: number;
+  best: number;
+  month: { present: number; late: number; absent: number; leave: number; sick: number; recorded: number };
+  calendar: Array<{ date: string; status: string }>;
+  totalPresent: number;
+};
+
+const DAY_STYLE: Record<string, string> = {
+  present: "bg-emerald-500/70",
+  late: "bg-amber-500/70",
+  sick: "bg-sky-500/70",
+  leave: "bg-violet-500/70",
+  absent: "bg-rose-500/70",
+};
 type Notice = { tone: "success" | "error"; text: string } | null;
 
 export default function ProfileClient({
@@ -40,6 +56,8 @@ export default function ProfileClient({
   rank,
   recentXp,
   stats,
+  badges,
+  attendanceSummary,
 }: {
   profile: Profile;
   level: number;
@@ -47,6 +65,8 @@ export default function ProfileClient({
   rank: number;
   recentXp: XpEntry[];
   stats: Stats;
+  badges: BadgeProp[];
+  attendanceSummary: AttendanceSummary;
 }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -208,6 +228,63 @@ export default function ProfileClient({
             <Stat label="โหวตที่ร่วม" value={stats.votes} icon="chart" />
             <Stat label="เข้าเรียน/มาสาย" value={stats.attendance} icon="calendar" />
           </div>
+
+          <SectionCard title={`ป้ายความสำเร็จ (${badges.length})`} icon="trophy">
+            {badges.length === 0 ? (
+              <p className="text-sm text-slate-500">ยังไม่มีป้าย — เช็กชื่อ ส่งงาน หรือช่วยตอบคำถามเพื่อปลดล็อกป้ายแรก</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {badges.map((badge) => (
+                  <span
+                    key={badge.code}
+                    title={`${badge.hint} · ได้เมื่อ ${formatDate(badge.earned_at)}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 ring-1 ring-inset ring-emerald-400/25"
+                  >
+                    <span>{badge.emoji}</span>
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="การเข้าเรียนของฉัน" icon="calendar">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-white/[0.03] py-2">
+                <p className="text-[10px] text-slate-500">สตรีคปัจจุบัน</p>
+                <p className="text-lg font-bold text-amber-300">{attendanceSummary.streak} 🔥</p>
+              </div>
+              <div className="rounded-xl bg-white/[0.03] py-2">
+                <p className="text-[10px] text-slate-500">สตรีคสูงสุด</p>
+                <p className="text-lg font-bold text-slate-200">{attendanceSummary.best}</p>
+              </div>
+              <div className="rounded-xl bg-white/[0.03] py-2">
+                <p className="text-[10px] text-slate-500">เดือนนี้มาเรียน</p>
+                <p className="text-lg font-bold text-emerald-300">
+                  {attendanceSummary.month.present + attendanceSummary.month.late}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-14 gap-1">
+              {attendanceSummary.calendar.map((day) => (
+                <span
+                  key={day.date}
+                  title={`${formatDate(day.date)} · ${day.status || "ยังไม่เช็กชื่อ"}`}
+                  className={`aspect-square rounded-[4px] ${DAY_STYLE[day.status] ?? "bg-white/[0.06]"}`}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              28 วันล่าสุด · เขียว=มาเรียน เหลือง=มาสาย ฟ้า=ลาป่วย ม่วง=ลากิจ แดง=ขาด
+            </p>
+            {attendanceSummary.month.recorded > 0 ? (
+              <p className="mt-1 text-[11px] text-slate-500">
+                เดือนนี้: มา {attendanceSummary.month.present} · สาย {attendanceSummary.month.late} · ลา{" "}
+                {attendanceSummary.month.sick + attendanceSummary.month.leave} · ขาด {attendanceSummary.month.absent}
+              </p>
+            ) : null}
+          </SectionCard>
 
           <SectionCard title="ประวัติแต้ม XP ล่าสุด" icon="chart">
             {recentXp.length === 0 ? (

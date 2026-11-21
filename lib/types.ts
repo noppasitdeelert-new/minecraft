@@ -36,11 +36,15 @@ export type Channel = {
   message_count?: number;
 };
 
+export type MessageReaction = { emoji: string; count: number; mine: boolean };
+
 export type ChatMessage = {
   id: number;
   channel_id: number;
   body: string;
   created_at: string;
+  edited_at: string | null;
+  reactions: MessageReaction[];
   user: PublicUser;
 };
 
@@ -52,6 +56,9 @@ export type Announcement = {
   important: number;
   created_at: string;
   author: PublicUser;
+  read_count: number;
+  reader_total: number;
+  read_by_me: boolean;
 };
 
 export type Meeting = {

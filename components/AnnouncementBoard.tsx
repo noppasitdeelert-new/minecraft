@@ -56,6 +56,25 @@ export default function AnnouncementBoard({ canPost, limit }: { canPost: boolean
     }
   }
 
+  async function markRead(item: Announcement) {
+    if (item.read_by_me) return;
+    setItems((prev) =>
+      prev.map((a) =>
+        a.id === item.id ? { ...a, read_by_me: true, read_count: a.read_count + 1 } : a,
+      ),
+    );
+    try {
+      await apiPost("/api/announcements/read", { id: item.id });
+    } catch (err) {
+      setItems((prev) =>
+        prev.map((a) =>
+          a.id === item.id ? { ...a, read_by_me: false, read_count: Math.max(0, a.read_count - 1) } : a,
+        ),
+      );
+      setError(err instanceof Error ? err.message : "บันทึกการอ่านไม่สำเร็จ");
+    }
+  }
+
   async function remove(id: number) {
     if (!confirm("ลบประกาศนี้?")) return;
     try {
@@ -173,9 +192,24 @@ export default function AnnouncementBoard({ canPost, limit }: { canPost: boolean
               <Avatar name={a.author.nickname} color={a.author.avatar_color} size={20} />
               <span className="text-slate-400">{a.author.nickname}</span>
               <RoleBadge role={a.author.role} className="!px-1.5 !py-0 !text-[9px]" />
-              <span className="ml-auto" title={relativeTime(a.created_at)}>
-                {formatDateTime(a.created_at)}
+              <span
+                className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-slate-400"
+                title={`อ่านแล้ว ${a.read_count} จาก ${a.reader_total} คน`}
+              >
+                👁 อ่านแล้ว {a.read_count}/{a.reader_total}
               </span>
+              <span title={relativeTime(a.created_at)}>{formatDateTime(a.created_at)}</span>
+              <button
+                onClick={() => void markRead(a)}
+                disabled={a.read_by_me}
+                className={`ml-auto rounded-full px-2.5 py-1 text-[10px] font-medium transition ${
+                  a.read_by_me
+                    ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-400/25"
+                    : "bg-white/5 text-slate-300 hover:bg-indigo-500/20 hover:text-white"
+                }`}
+              >
+                {a.read_by_me ? "✓ รับทราบแล้ว" : "รับทราบประกาศนี้"}
+              </button>
             </div>
           </article>
         ))

@@ -70,6 +70,10 @@ export const XP_REASON_LABEL: Record<string, string> = {
   "resource.create": "แชร์ชีท/ไฟล์เรียน",
   "qa.answer": "ช่วยตอบคำถามเพื่อน",
   "admin.adjust": "แอดมินปรับแต้ม",
+  "shop.redeem": "แลกของรางวัลด้วย XP",
+  "shop.refund": "คืนแต้มจากการแลกรางวัล",
+  "meeting.join": "เข้าร่วมประชุม",
+  "chat.message": "ส่งข้อความในห้อง",
 };
 
 export const DAY_LABEL: Record<number, string> = {
