@@ -85,7 +85,7 @@ async function initialise(): Promise<D1Database> {
  * Schema version. Bump it whenever SCHEMA changes so existing databases run the
  * statements again; unchanged databases skip the whole block (one cheap query).
  */
-const SCHEMA_VERSION = "2026-11-21.3";
+const SCHEMA_VERSION = "2026-11-21.4";
 
 /** Columns added after the first release — existing databases need ALTER TABLE. */
 const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }> = [
@@ -592,6 +592,75 @@ CREATE TABLE IF NOT EXISTS key_link_jobs (
   completed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_key_link_jobs_user ON key_link_jobs(user_id, id);
+
+CREATE TABLE IF NOT EXISTS game_rooms (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  game            TEXT NOT NULL,
+  mode            TEXT NOT NULL DEFAULT 'pvp',
+  status          TEXT NOT NULL DEFAULT 'waiting',
+  host_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  guest_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  turn_seat       INTEGER NOT NULL DEFAULT 0,
+  board           TEXT NOT NULL,
+  turn_seconds    INTEGER NOT NULL DEFAULT 60,
+  deadline_at     TEXT,
+  winner_seat     INTEGER,
+  result          TEXT,
+  result_note     TEXT,
+  move_count      INTEGER NOT NULL DEFAULT 0,
+  draw_offer_seat INTEGER,
+  last_move       TEXT,
+  version         INTEGER NOT NULL DEFAULT 0,
+  host_seen       TEXT,
+  guest_seen      TEXT,
+  created_at      TEXT NOT NULL,
+  started_at      TEXT,
+  finished_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_game_rooms_status ON game_rooms(status, id);
+CREATE INDEX IF NOT EXISTS idx_game_rooms_host ON game_rooms(host_id, status);
+
+CREATE TABLE IF NOT EXISTS game_moves (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id    INTEGER NOT NULL REFERENCES game_rooms(id) ON DELETE CASCADE,
+  seat       INTEGER NOT NULL,
+  ply        INTEGER NOT NULL,
+  move       TEXT NOT NULL,
+  notation   TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_game_moves_room ON game_moves(room_id, ply);
+
+CREATE TABLE IF NOT EXISTS game_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  room_id    INTEGER NOT NULL REFERENCES game_rooms(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_game_messages_room ON game_messages(room_id, id);
+
+CREATE TABLE IF NOT EXISTS game_spectators (
+  room_id   INTEGER NOT NULL REFERENCES game_rooms(id) ON DELETE CASCADE,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_seen TEXT NOT NULL,
+  PRIMARY KEY (room_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS game_stats (
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  game        TEXT NOT NULL,
+  played      INTEGER NOT NULL DEFAULT 0,
+  wins        INTEGER NOT NULL DEFAULT 0,
+  losses      INTEGER NOT NULL DEFAULT 0,
+  draws       INTEGER NOT NULL DEFAULT 0,
+  rating      INTEGER NOT NULL DEFAULT 1200,
+  best_rating INTEGER NOT NULL DEFAULT 1200,
+  streak      INTEGER NOT NULL DEFAULT 0,
+  updated_at  TEXT NOT NULL,
+  PRIMARY KEY (user_id, game)
+);
+CREATE INDEX IF NOT EXISTS idx_game_stats_rating ON game_stats(game, rating);
 `;
 
 /* ------------------------------------------------------------------ */

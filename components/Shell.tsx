@@ -25,6 +25,7 @@ const NAV = [
   { href: "/chat", label: "แชตห้อง", icon: "chat" },
   { href: "/nox", label: "Nox AI", icon: "spark" },
   { href: "/meeting", label: "ห้องประชุม", icon: "video" },
+  { href: "/games", label: "เกมกระดาน 1v1", icon: "trophy" },
   { href: "/tasks", label: "การบ้าน", icon: "tasks" },
   { href: "/schedule", label: "ตารางเรียน", icon: "calendar" },
   { href: "/hub", label: "คลังห้อง", icon: "hub" },

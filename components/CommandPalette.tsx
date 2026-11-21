@@ -31,6 +31,7 @@ const SHORTCUTS: PaletteResult[] = [
   { kind: "resource", id: 0, title: "คลังชีทและไฟล์เรียน", subtitle: "คลังห้อง", href: "/hub#resources" },
   { kind: "member", id: 0, title: "ทำเนียบสมาชิก", subtitle: "ทุกคนในห้อง", href: "/members" },
   { kind: "resource", id: 0, title: "ตัวช่วยลิงก์คีย์", subtitle: "ตรวจลิงก์ + คัดลอกคีย์", href: "/key-link" },
+  { kind: "resource", id: 0, title: "เกมกระดาน 1v1", subtitle: "หมากฮอส หมากรุก เรียง 5 เรียง 4", href: "/games" },
 ];
 
 export default function CommandPalette() {
