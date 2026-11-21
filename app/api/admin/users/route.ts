@@ -37,7 +37,10 @@ export async function PATCH(req: Request) {
       id,
     );
     if (!target) throw new ApiError(404, "ไม่พบสมาชิกนี้");
-    if (target.role === "owner") throw new ApiError(403, "ไม่สามารถแก้ไขบัญชีแอดมินสูงสุดได้");
+    // แอดมินสูงสุดแก้ XP/ฉายาของตัวเองได้ แต่ห้ามคนอื่นมาแก้บัญชีแอดมินสูงสุด
+    if (target.role === "owner" && target.id !== admin.id) {
+      throw new ApiError(403, "ไม่สามารถแก้ไขบัญชีแอดมินสูงสุดได้");
+    }
 
     if (body.role !== undefined) {
       const role = String(body.role);
