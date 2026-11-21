@@ -10,10 +10,10 @@ export default async function SchedulePage() {
     <div>
       <PageHeader
         title="ตารางเรียนและกำหนดการ"
-        description="ตารางเรียนรายสัปดาห์ ตารางเวรประจำวัน นัดหมายสำคัญ และการเช็กชื่อเข้าเรียน"
+        description="ตารางเรียนรายสัปดาห์ ตารางเวรประจำวัน นัดหมายสำคัญ — สมาชิกทุกคนเพิ่มและลบรายการได้"
         icon="calendar"
       />
-      <ScheduleClient canEdit={canModerate(user.role)} />
+      <ScheduleClient canManage={canModerate(user.role)} currentUserId={user.id} />
     </div>
   );
 }

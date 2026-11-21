@@ -16,7 +16,7 @@ const TABS = [
   { key: "attendance", label: "เช็กชื่อ", icon: "users" },
 ] as const;
 
-export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
+export default function ScheduleClient({ canManage, currentUserId }: { canManage: boolean; currentUserId: number }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("classes");
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +48,8 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const canDelete = (entry: ScheduleEntry) => canManage || entry.created_by === currentUserId;
 
   const today = currentWeekday();
   const classes = useMemo(() => entries.filter((e) => e.kind === "class"), [entries]);
@@ -99,14 +101,14 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
             </button>
           ))}
         </div>
-        {canEdit && tab !== "attendance" ? (
+        {tab !== "attendance" ? (
           <button onClick={() => setComposer((v) => !v)} className="btn btn-ghost btn-sm ml-auto">
             <Icon name="plus" className="size-3.5" /> เพิ่มรายการ
           </button>
         ) : null}
       </div>
 
-      {composer && canEdit ? (
+      {composer ? (
         <form onSubmit={create} className="card space-y-2.5 border-indigo-400/25 bg-indigo-500/[0.06] p-4">
           <div className="grid gap-2.5 sm:grid-cols-2">
             <select
@@ -191,8 +193,8 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
                         <p className="truncate text-xs font-medium text-slate-100">{c.title}</p>
                         <p className="truncate text-[11px] text-slate-500">{[c.subject, c.location].filter(Boolean).join(" · ")}</p>
                       </div>
-                      {canEdit ? (
-                        <button onClick={() => remove(c.id)} className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-rose-400">
+                      {canDelete(c) ? (
+                        <button onClick={() => remove(c.id)} className="text-slate-600 hover:text-rose-400 sm:opacity-0 sm:group-hover:opacity-100">
                           <Icon name="trash" className="size-3.5" />
                         </button>
                       ) : null}
@@ -222,8 +224,8 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
                       <li key={d.id} className="group flex items-center gap-2 rounded-lg bg-white/[0.03] px-2.5 py-1.5 text-xs text-slate-200">
                         <span className="text-amber-300">🧹</span>
                         <span className="flex-1">{d.title}</span>
-                        {canEdit ? (
-                          <button onClick={() => remove(d.id)} className="text-slate-600 opacity-0 group-hover:opacity-100 hover:text-rose-400">
+                        {canDelete(d) ? (
+                          <button onClick={() => remove(d.id)} className="text-slate-600 hover:text-rose-400 sm:opacity-0 sm:group-hover:opacity-100">
                             <Icon name="trash" className="size-3" />
                           </button>
                         ) : null}
@@ -237,7 +239,7 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
         </div>
       ) : tab === "events" ? (
         <div className="space-y-2.5">
-          {events.length === 0 ? <Empty icon="bell" title="ยังไม่มีนัดหมาย" hint="แอดมินสามารถเพิ่มกิจกรรมหรือวันสอบได้" /> : null}
+          {events.length === 0 ? <Empty icon="bell" title="ยังไม่มีนัดหมาย" hint="สมาชิกทุกคนเพิ่มกิจกรรมหรือวันสอบได้" /> : null}
           {events.map((e) => {
             const days = Math.ceil(
               (new Date(`${e.date}T00:00:00+07:00`).getTime() - new Date(`${todayBangkok()}T00:00:00+07:00`).getTime()) / 86400000,
@@ -266,7 +268,7 @@ export default function ScheduleClient({ canEdit }: { canEdit: boolean }) {
                 >
                   {days < 0 ? "ผ่านไปแล้ว" : days === 0 ? "วันนี้!" : `อีก ${days} วัน`}
                 </span>
-                {canEdit ? (
+                {canDelete(e) ? (
                   <button onClick={() => remove(e.id)} className="rounded p-1.5 text-slate-500 hover:text-rose-300">
                     <Icon name="trash" className="size-3.5" />
                   </button>

@@ -11,7 +11,7 @@ export async function GET() {
   try {
     await requireUser();
     const entries = await all<ScheduleEntry>(
-      `SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note
+      `SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note, created_by
          FROM schedule_entries
         ORDER BY kind, COALESCE(day_of_week, 7), COALESCE(start_time, ''), COALESCE(date, '')`,
     );
@@ -23,8 +23,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // สมาชิกทุกคนเพิ่มรายการตารางเรียน/ตารางเวรได้
     const user = await requireUser();
-    if (!canModerate(user.role)) throw new ApiError(403, "เฉพาะแอดมินหรือผู้ดูแลเท่านั้นที่แก้ตารางได้");
 
     const body = await readJson<{
       kind?: string;
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     await logAudit(user.id, "schedule.create", `schedule:${res.lastInsertRowid}`, `${kind}: ${title}`);
 
     const entry = await one<ScheduleEntry>(
-      "SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note FROM schedule_entries WHERE id = ?",
+      "SELECT id, kind, title, subject, location, day_of_week, start_time, end_time, date, note, created_by FROM schedule_entries WHERE id = ?",
       res.lastInsertRowid,
     );
     return json({ entry });
@@ -88,10 +88,16 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const user = await requireUser();
-    if (!canModerate(user.role)) throw new ApiError(403, "ไม่มีสิทธิ์ลบรายการตาราง");
     const id = Number(new URL(req.url).searchParams.get("id") || 0);
-    const entry = await one<{ title: string }>("SELECT title FROM schedule_entries WHERE id = ?", id);
+    const entry = await one<{ title: string; created_by: number | null }>(
+      "SELECT title, created_by FROM schedule_entries WHERE id = ?",
+      id,
+    );
     if (!entry) throw new ApiError(404, "ไม่พบรายการนี้");
+    // ลบได้เฉพาะรายการที่ตัวเองสร้าง หรือแอดมิน/ผู้ดูแล
+    if (!canModerate(user.role) && entry.created_by !== user.id) {
+      throw new ApiError(403, "ลบได้เฉพาะรายการที่คุณสร้างเอง หรือให้แอดมินลบให้");
+    }
     await run("DELETE FROM schedule_entries WHERE id = ?", id);
     await logAudit(user.id, "schedule.delete", `schedule:${id}`, entry.title);
     return json({ ok: true });

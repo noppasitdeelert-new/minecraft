@@ -1,18 +1,12 @@
 import { ApiError, fail, json, optionalStr, readJson } from "@/lib/api";
-import { randomCode } from "@/lib/crypto";
-import { all, one, run, nowIso } from "@/lib/db";
+import { all, one, run } from "@/lib/db";
 import { requireManager } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
+import { createInviteKeys, unusedInviteCodes, usedKeyCount } from "@/lib/keys";
 import type { InviteKey } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no confusing 0/O/1/I
-
-function generateCode(): string {
-  return `SKC105-${randomCode(6, ALPHABET)}`;
-}
 
 export async function GET() {
   try {
@@ -30,7 +24,7 @@ export async function GET() {
       keys,
       stats: {
         available: keys.filter((k) => !k.used_at).length,
-        used: keys.filter((k) => k.used_at).length,
+        used: await usedKeyCount(),
       },
     });
   } catch (error) {
@@ -45,17 +39,7 @@ export async function POST(req: Request) {
     const count = Math.min(Math.max(Number(body.count ?? 1), 1), 20);
     const note = optionalStr(body.note, 200);
 
-    const created: string[] = [];
-    for (let i = 0; i < count; i += 1) {
-      let code = generateCode();
-      let attempts = 0;
-      while (await one("SELECT id FROM invite_keys WHERE code = ?", code) && attempts < 10) {
-        code = generateCode();
-        attempts += 1;
-      }
-      await run("INSERT INTO invite_keys (code, note, created_by, created_at) VALUES (?, ?, ?, ?)", code, note, admin.id, nowIso());
-      created.push(code);
-    }
+    const created = await createInviteKeys(count, note, admin.id);
 
     await logAudit(admin.id, "invite.create", `invite:${created.join(",")}`, `สร้างคีย์ห้อง ${created.length} คีย์`);
     return json({ ok: true, codes: created });
@@ -78,14 +62,28 @@ export async function DELETE(req: Request) {
   }
 }
 
-/** Send the newest unused key to Discord/LINE (used by the "ส่งคีย์เข้า Discord" button). */
+/**
+ * Send every unused key to Discord/LINE in one go (used by the
+ * "ส่งคีย์ทั้งหมดที่ยังไม่ถูกใช้" button in /admin).
+ */
 export async function PATCH() {
   try {
     const admin = await requireManager();
-    const key = await one<{ code: string }>("SELECT code FROM invite_keys WHERE used_at IS NULL ORDER BY id DESC LIMIT 1");
-    if (!key) throw new ApiError(404, "ยังไม่มีคีย์ที่ว่างใช้งาน");
-    await notifyChannels(`🔑 คีย์เข้าห้อง SKC105 (ใช้ได้ 1 ครั้ง): \`${key.code}\`\nสร้างโดย ${admin.nickname}`);
-    return json({ ok: true });
+    const codes = await unusedInviteCodes();
+    if (codes.length === 0) throw new ApiError(404, "ยังไม่มีคีย์ที่ว่างใช้งาน — กดสร้างคีย์เชิญก่อน");
+
+    const CHUNK = 20;
+    for (let i = 0; i < codes.length; i += CHUNK) {
+      const slice = codes.slice(i, i + CHUNK);
+      await notifyChannels(
+        `🔑 คีย์เข้าห้อง SKC105 ทั้งหมด ${codes.length} คีย์ (ใช้ได้คีย์ละ 1 ครั้ง)\n${slice
+          .map((code) => `\`${code}\``)
+          .join("\n")}\nสร้างโดย ${admin.nickname}`,
+      );
+    }
+
+    await logAudit(admin.id, "invite.send", "invite:all", `ส่งคีย์ที่ยังไม่ถูกใช้ทั้งหมด ${codes.length} คีย์`);
+    return json({ ok: true, codes, sent: codes.length });
   } catch (error) {
     return fail(error);
   }

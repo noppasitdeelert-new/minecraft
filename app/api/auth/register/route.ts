@@ -2,6 +2,7 @@ import { ApiError, fail, json, readJson, str } from "@/lib/api";
 import { one, run, nowIso, randomAvatarColor, hashPassword } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 import { logAudit, notifyChannels } from "@/lib/integrations";
+import { autoRefillInviteKeys } from "@/lib/keys";
 
 export const runtime = "nodejs";
 
@@ -73,6 +74,8 @@ export async function POST(req: Request) {
     }
 
     await logAudit(userId, "auth.register", `user:${userId}`, `สมัครสมาชิกด้วยคีย์ ${key} (คีย์ถูกลบแล้ว)`);
+    // ทุก ๆ 5 คนที่ใช้คีย์ ระบบจะสร้างคีย์ชุดใหม่และส่งเข้า webhook ให้อัตโนมัติ
+    await autoRefillInviteKeys().catch(() => undefined);
     void notifyChannels(`👋 สมาชิกใหม่เข้าห้อง: **${nickname}** (${realName})`);
 
     const user = await one<{

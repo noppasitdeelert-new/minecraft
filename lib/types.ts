@@ -103,6 +103,7 @@ export type ScheduleEntry = {
   end_time: string | null;
   date: string | null;
   note: string | null;
+  created_by: number | null;
 };
 
 export type AttendanceRecord = {

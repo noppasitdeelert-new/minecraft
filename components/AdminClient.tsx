@@ -172,8 +172,10 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
 
   async function pushKey() {
     try {
-      await apiPatch("/api/admin/keys");
-      setNotice("ส่งคีย์ล่าสุดเข้า Discord / LINE แล้ว (ถ้าตั้งค่า webhook ไว้)");
+      const res = await apiPatch<{ codes: string[]; sent: number }>("/api/admin/keys");
+      setLastCodes(res.codes);
+      await loadKeys();
+      setNotice(`ส่งคีย์ที่ยังไม่ถูกใช้ทั้งหมด ${res.sent} คีย์เข้า Discord / LINE แล้ว (ถ้าตั้งค่า webhook ไว้)`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ส่งคีย์ไม่สำเร็จ");
     }
@@ -484,7 +486,7 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
               <p className="mt-1 text-2xl font-bold text-emerald-300">{keyStats.available}</p>
             </div>
             <div className="card p-4">
-              <p className="text-xs text-slate-400">คีย์ที่ใช้แล้ว (ถูกลบถาวร)</p>
+              <p className="text-xs text-slate-400">สมัครด้วยคีย์แล้ว (คน)</p>
               <p className="mt-1 text-2xl font-bold text-slate-300">{keyStats.used}</p>
             </div>
             <div className="card p-4">
@@ -514,11 +516,13 @@ export default function AdminClient({ me }: { me: { id: number; role: Role; nick
                 <Icon name="key" className="size-4" /> สร้างคีย์เชิญ
               </button>
               <button type="button" onClick={pushKey} className="btn btn-ghost">
-                <Icon name="bell" className="size-4" /> ส่งเข้า Discord/LINE
+                <Icon name="bell" className="size-4" /> ส่งคีย์ที่ยังไม่ถูกใช้ทั้งหมด
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
-              ทุกคีย์ใช้สมัครได้เพียง 1 บัญชีเท่านั้น — เมื่อสมัครสำเร็จ ระบบจะลบคีย์ออกจากฐานข้อมูลทันทีเพื่อป้องกันการนำไปใช้ซ้ำ
+              ปุ่มส่งจะส่งคีย์ที่ยังไม่ถูกใช้ทั้งหมดพร้อมกัน — ทุกคีย์ใช้สมัครได้เพียง 1 บัญชี และถูกลบออกจากฐานข้อมูลทันทีเมื่อสมัครสำเร็จ
+              <br />
+              ระบบเติมคีย์อัตโนมัติ: ทุก ๆ 5 คนที่ใช้คีย์สมัครแล้ว ระบบจะสร้างคีย์ชุดใหม่ 5 คีย์และส่งเข้า Discord/LINE ให้เอง
             </p>
           </form>
 
