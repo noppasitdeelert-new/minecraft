@@ -101,6 +101,12 @@ const paths: Record<string, ReactNode> = {
       <path d="M15 11V7.2a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.4A6.6 6.6 0 0 1 5 16.5L4 12a1.6 1.6 0 0 1 3-.9L9 14" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2.5" />
+      <path d="M5 15V5.5A2.5 2.5 0 0 1 7.5 3H17" />
+    </>
+  ),
   file: (
     <>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />

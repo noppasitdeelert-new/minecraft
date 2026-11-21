@@ -8,6 +8,9 @@ import { Alert, Avatar } from "./ui";
 
 type NoxChatMessage = { id: number; role: "user" | "assistant"; body: string; created_at: string };
 
+/** ถ้าคำตอบของ Nox มีสัญลักษณ์ Markdown (** หรือ `) ให้มีปุ่มคัดลอกทั้งข้อความ */
+const HAS_MARKDOWN = /\*\*|`/;
+
 const SUGGESTIONS = [
   "สวนชลคือที่ไหน น่าไปไหม",
   "ช่วยสรุปการบ้านของห้อง ม.105 ให้หน่อย",
@@ -29,7 +32,31 @@ export default function NoxClient({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => () => {
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
+  }, []);
+
+  async function copyMessage(id: number, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      document.body.removeChild(area);
+    }
+    setCopiedId(id);
+    if (copyTimer.current) window.clearTimeout(copyTimer.current);
+    copyTimer.current = window.setTimeout(() => setCopiedId(null), 1600);
+  }
 
   const scrollToBottom = useCallback((smooth = false) => {
     const el = scroller.current;
@@ -167,6 +194,7 @@ export default function NoxClient({
 
           {messages.map((m) => {
             const mine = m.role === "user";
+            const showCopy = !mine && HAS_MARKDOWN.test(m.body);
             return (
               <div key={m.id} className={`flex gap-2.5 ${mine ? "justify-end" : ""}`}>
                 {!mine ? (
@@ -182,9 +210,22 @@ export default function NoxClient({
                   >
                     {m.body}
                   </div>
-                  <p className="mt-0.5 text-[10px] text-slate-500">
-                    {mine ? nickname : "Nox"} · {formatTime(m.created_at)}
-                  </p>
+                  <div className={`mt-1 flex items-center gap-2 ${mine ? "justify-end" : ""}`}>
+                    {showCopy ? (
+                      <button
+                        type="button"
+                        onClick={() => void copyMessage(m.id, m.body)}
+                        className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400 transition hover:border-indigo-400/30 hover:text-white"
+                        aria-label="คัดลอกคำตอบของ Nox ทั้งหมด"
+                      >
+                        <Icon name={copiedId === m.id ? "check" : "copy"} className="size-3" />
+                        {copiedId === m.id ? "คัดลอกแล้ว" : "คัดลอก"}
+                      </button>
+                    ) : null}
+                    <p className="text-[10px] text-slate-500">
+                      {mine ? nickname : "Nox"} · {formatTime(m.created_at)}
+                    </p>
+                  </div>
                 </div>
                 {mine ? <Avatar name={nickname} size={32} className="mt-0.5" /> : null}
               </div>

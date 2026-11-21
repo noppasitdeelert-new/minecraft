@@ -59,7 +59,19 @@ export const NOX_SYSTEM_PROMPT = `คุณคือ "Nox" ผู้ช่วย
 รูปแบบคำตอบ:
 - ตอบคำถามให้จบในคำตอบเดียว ไม่ต้องถามกลับถ้าไม่จำเป็น
 - ถ้าเป็นขั้นตอน ให้ใช้เลขลำดับ 1. 2. 3.
-- ความยาวปกติไม่เกิน 6–10 บรรทัด ยกเว้นผู้ใช้ขอรายละเอียดเพิ่ม`;
+- ความยาวปกติไม่เกิน 6–10 บรรทัด ยกเว้นผู้ใช้ขอรายละเอียดเพิ่ม
+
+ความถูกต้องของข้อมูล (สำคัญมาก):
+- ห้ามใส่ตัวยึดตำแหน่งในวงเล็บแหลม เช่น <ตำแหน่ง/ถนน> <ชื่อสถานที่> <เบอร์โทร> ลงในคำตอบเด็ดขาด
+- ห้ามแต่งที่อยู่ เวลาเปิด-ปิด ราคา หรือเส้นทางเดินทางขึ้นเอง
+- ถ้าไม่มีข้อมูลที่ยืนยันได้ (เช่นที่ตั้งจริงของสวนชล) ให้บอกตรง ๆ ว่า "ผมยังไม่มีข้อมูลส่วนนี้ในระบบ" แล้วเล่าสิ่งที่รู้จริง หรือแนะนำให้ถามครู/แอดมินห้อง ห้ามเดาแทน`;
+
+/** ข้อมูลจริงของสวนชล/ห้องที่แอดมินใส่ไว้ใน NOX_FACTS (ถ้าไม่มีก็ใช้ prompt ปกติ) */
+function systemPrompt(): string {
+  const facts = process.env.NOX_FACTS?.trim();
+  if (!facts) return NOX_SYSTEM_PROMPT;
+  return `${NOX_SYSTEM_PROMPT}\n\nข้อมูลจริงที่แอดมินห้องยืนยันแล้ว (ใช้ตอบได้เลย):\n${facts}\nเมื่อถูกถามเรื่องข้อมูลข้างบน ให้ตอบตามข้อมูลนี้เท่านั้น ห้ามแต่งเพิ่ม`;
+}
 
 export type NoxMessage = { role: "user" | "assistant"; content: string };
 
@@ -86,7 +98,7 @@ export async function askNox(messages: NoxMessage[]): Promise<string> {
         model,
         temperature: 0.6,
         max_completion_tokens: 900,
-        messages: [{ role: "system", content: NOX_SYSTEM_PROMPT }, ...messages],
+        messages: [{ role: "system", content: systemPrompt() }, ...messages],
       }),
     });
 
