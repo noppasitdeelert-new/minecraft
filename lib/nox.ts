@@ -6,6 +6,35 @@
 export const NOX_NAME = "Nox";
 export const NOX_TEAM = "team Noxvalis";
 export const NOX_MODEL = "openai/gpt-oss-120b";
+/**
+ * โมเดลสำรอง: ถ้าโมเดลหลักถูกปิด/เลิกใช้ในโปรเจกต์ Groq (เช่น "blocked at the project level")
+ * Nox จะลองตัวถัดไปให้อัตโนมัติ ผู้ใช้จึงยังคุยได้โดยไม่ต้องรอแก้ที่ console
+ */
+export const NOX_FALLBACK_MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+
+/** จำโมเดลที่ใช้ได้จริงใน isolate นี้ เพื่อไม่ต้องลองซ้ำทุกข้อความ */
+let cachedModel: string | null = null;
+
+function candidateModels(): string[] {
+  const preferred = [process.env.NOX_MODEL?.trim(), NOX_MODEL].filter(Boolean) as string[];
+  const list = [cachedModel, ...preferred, ...NOX_FALLBACK_MODELS].filter(Boolean) as string[];
+  return [...new Set(list)];
+}
+
+/** ข้อความ error จาก Groq ที่แปลว่า "โมเดลนี้ใช้ไม่ได้กับโปรเจกต์นี้" — ลองโมเดลอื่นต่อได้ */
+function isModelUnavailable(detail: string): boolean {
+  const text = detail.toLowerCase();
+  return [
+    "blocked at the project level",
+    "not found",
+    "does not exist",
+    "decommissioned",
+    "not supported",
+    "no access",
+    "permission",
+    "rate limit",
+  ].some((hint) => text.includes(hint));
+}
 
 export function hasGroqKey(): boolean {
   return Boolean(process.env.GROQ_API_KEY?.trim());
@@ -39,32 +68,47 @@ type GroqResponse = {
   error?: { message?: string };
 };
 
-/** Send the conversation to Groq and return Nox's reply text. */
+/** ส่งบทสนทนาไปที่ Groq โดยไล่ลองโมเดลตามลำดับจนกว่าจะได้คำตอบ */
 export async function askNox(messages: NoxMessage[]): Promise<string> {
   const key = process.env.GROQ_API_KEY?.trim();
   if (!key) throw new Error("ยังไม่ได้ตั้งค่า GROQ_API_KEY สำหรับ Nox");
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: NOX_MODEL,
-      temperature: 0.6,
-      max_completion_tokens: 900,
-      messages: [{ role: "system", content: NOX_SYSTEM_PROMPT }, ...messages],
-    }),
-  });
+  const failures: string[] = [];
 
-  const data = (await res.json().catch(() => null)) as GroqResponse | null;
-  if (!res.ok) {
-    const detail = data?.error?.message ?? `HTTP ${res.status}`;
-    throw new Error(`Nox ตอบไม่ได้ในตอนนี้ (${detail})`);
+  for (const model of candidateModels()) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.6,
+        max_completion_tokens: 900,
+        messages: [{ role: "system", content: NOX_SYSTEM_PROMPT }, ...messages],
+      }),
+    });
+
+    const data = (await res.json().catch(() => null)) as GroqResponse | null;
+    if (!res.ok) {
+      const detail = data?.error?.message ?? `HTTP ${res.status}`;
+      failures.push(`${model}: ${detail}`);
+      if (res.status === 400 || res.status === 403 || res.status === 404 || isModelUnavailable(detail)) {
+        cachedModel = null;
+        continue;
+      }
+      throw new Error(`Nox ตอบไม่ได้ในตอนนี้ (${detail})`);
+    }
+
+    const reply = data?.choices?.[0]?.message?.content?.trim();
+    if (!reply) throw new Error("Nox ไม่ได้ส่งคำตอบกลับมา ลองอีกครั้งนะ");
+    cachedModel = model;
+    return reply;
   }
 
-  const reply = data?.choices?.[0]?.message?.content?.trim();
-  if (!reply) throw new Error("Nox ไม่ได้ส่งคำตอบกลับมา ลองอีกครั้งนะ");
-  return reply;
+  throw new Error(
+    `Nox ตอบไม่ได้ในตอนนี้ — โมเดลที่ตั้งไว้ยังไม่เปิดใช้งานในโปรเจกต์ Groq ` +
+      `(${failures.join(" | ")}) เปิดโมเดลได้ที่ https://console.groq.com/settings/project/limits`,
+  );
 }
