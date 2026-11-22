@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/client";
 import { GAMES, GAME_KEYS, type GameKey } from "@/lib/games";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
+import { useGameLive } from "@/lib/use-game-live";
 import { Alert, Avatar, Empty, RoleBadge, SectionCard } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
@@ -97,7 +98,10 @@ export default function GamesLobbyClient() {
   useEffect(() => {
     void load();
   }, [load]);
-  useVisiblePoll(load, 12000);
+
+  // มีห้องใหม่/มีคน join/ห้องจบ → ล็อบบี้อัปเดตทันที, ถ้าเรียลไทม์ใช้ไม่ได้ยัง poll สำรอง
+  const live = useGameLive("games:lobby", () => void load());
+  useVisiblePoll(load, live.status === "online" ? 30000 : 6000);
 
   async function create() {
     setBusy(true);
@@ -257,6 +261,12 @@ export default function GamesLobbyClient() {
       </div>
 
       <SectionCard title="ห้องที่เปิดรอคู่แข่ง" icon="users">
+        <p className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+          <span
+            className={`size-1.5 rounded-full ${live.status === "online" ? "animate-pulse bg-emerald-400" : "bg-slate-500"}`}
+          />
+          {live.status === "online" ? "อัปเดตทันทีแบบเรียลไทม์" : "รีเฟรชอัตโนมัติทุก 6 วินาที"}
+        </p>
         {data === null ? (
           <p className="py-4 text-center text-xs text-slate-500">กำลังโหลด…</p>
         ) : data.rooms.length === 0 ? (

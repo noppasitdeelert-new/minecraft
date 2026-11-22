@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/client";
 import { useVisiblePoll } from "@/lib/use-visible-poll";
+import { useGameLive } from "@/lib/use-game-live";
 import { GAMES, type AnyMove, type GameKey, type Seat } from "@/lib/games";
 import { Alert, Avatar, RoleBadge } from "@/components/ui";
 import { Icon } from "@/components/icons";
@@ -79,6 +80,7 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
   const [chat, setChat] = useState("");
   const [tick, setTick] = useState(Date.now());
   const [closed, setClosed] = useState(false);
+  const [clockSkew, setClockSkew] = useState(0);
   const pendingRef = useRef(false);
 
   useEffect(() => {
@@ -91,6 +93,9 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
     try {
       const next = await apiGet<RoomState>(`/api/games/rooms/${roomId}`);
       setView(next);
+      // นาฬิกาเดินตามเวลาของเซิร์ฟเวอร์ ไม่ใช่เวลาของเครื่องผู้เล่น → ทุกคนเห็นเวลาเหลือเท่ากัน
+      const skew = Date.parse(next.serverTime) - Date.now();
+      setClockSkew((prev) => (Math.abs(prev - skew) > 750 ? skew : prev));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "โหลดห้องไม่สำเร็จ");
@@ -100,7 +105,23 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
   useEffect(() => {
     void load();
   }, [load]);
-  useVisiblePoll(load, 1200, !closed);
+
+  // เรียลไทม์: เดินหมาก/จบเกม/แชต ถึงอีกฝั่งทันที ไม่ต้องรอรอบ polling
+  const live = useGameLive(`game:${roomId}`, () => void load(), !closed);
+  useVisiblePoll(load, live.status === "online" ? 15000 : 1200, !closed);
+
+  // หมดเวลาเดินหมาก: ดึงผลจากเซิร์ฟเวอร์ทันทีที่เวลาของฝั่งเราหมด (ไม่รอรอบ polling)
+  const deadlineMs = view?.deadlineAt && view.status === "playing" ? Date.parse(view.deadlineAt) : null;
+  const expiredRef = useRef(false);
+  useEffect(() => {
+    if (deadlineMs === null) {
+      expiredRef.current = false;
+      return;
+    }
+    if (expiredRef.current || tick + clockSkew < deadlineMs) return;
+    expiredRef.current = true;
+    void load();
+  }, [deadlineMs, tick, clockSkew, load]);
 
   async function sendMove(move: AnyMove) {
     if (pendingRef.current) return;
@@ -173,7 +194,7 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
 
   const meta = GAMES[view.game];
   const mySeat = view.mySeat;
-  const remaining = view.deadlineAt && view.status === "playing" ? Math.max(0, (Date.parse(view.deadlineAt) - tick) / 1000) : null;
+  const remaining = deadlineMs !== null ? Math.max(0, (deadlineMs - (tick + clockSkew)) / 1000) : null;
   const offerFromOther = view.drawOfferSeat !== null && view.drawOfferSeat !== mySeat;
   const offerMine = view.drawOfferSeat !== null && view.drawOfferSeat === mySeat;
   const outcome = view.status === "finished" ? outcomeLabel(view, mySeat) : null;
@@ -206,6 +227,24 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
             }`}
           >
             {view.status === "playing" ? "กำลังเล่น" : view.status === "waiting" ? "รอคู่แข่ง" : "จบเกม"}
+          </span>
+          <span
+            className={`badge flex items-center gap-1.5 ${
+              live.status === "online"
+                ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/30"
+                : "bg-slate-500/15 text-slate-300 ring-slate-400/25"
+            }`}
+            title={
+              live.status === "online"
+                ? "ผลการเดินและผลเกมส่งถึงทุกคนทันที"
+                : "กำลังเชื่อมต่อเรียลไทม์ — ระหว่างนี้ระบบรีเฟรชอัตโนมัติแทน"
+            }
+          >
+            <span
+              className={`size-1.5 rounded-full ${live.status === "online" ? "animate-pulse bg-emerald-400" : "bg-slate-400"}`}
+            />
+            {live.status === "online" ? "เรียลไทม์" : live.status === "connecting" ? "กำลังเชื่อมต่อ" : "โหมดสำรอง"}
+            {live.viewers > 0 ? <span className="text-[10px] text-slate-400">· ดูอยู่ {live.viewers}</span> : null}
           </span>
           <button type="button" onClick={copyInvite} className="btn btn-ghost btn-sm">
             <Icon name="link" className="size-4" /> ชวนเพื่อน

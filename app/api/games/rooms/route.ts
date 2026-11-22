@@ -1,6 +1,7 @@
 import { fail, json, readJson } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { createRoom, lobbyState } from "@/lib/gamerooms";
+import { publishLobbyPulse } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
     const user = await requireUser();
     const body = await readJson<{ game?: unknown; mode?: unknown; turnSeconds?: unknown }>(req);
     const room = await createRoom(user, { game: body.game, mode: body.mode, turnSeconds: body.turnSeconds });
+    await publishLobbyPulse();
     return json({ ok: true, id: room.id }, 201);
   } catch (error) {
     return fail(error);
