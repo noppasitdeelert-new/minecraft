@@ -26,9 +26,11 @@ export function useGameLive(
   room: string,
   onEvent: () => void,
   enabled = true,
-): { status: LiveStatus; viewers: number } {
+): { status: LiveStatus; viewers: number; presentIds: string[] } {
   const [status, setStatus] = useState<LiveStatus>("connecting");
   const [viewers, setViewers] = useState(0);
+  // userId ของคนอื่นที่กำลังต่ออยู่ในห้อง (ข้อมูล presence สด ๆ ไม่ต้องรอ snapshot)
+  const [presentIds, setPresentIds] = useState<string[]>([]);
   const handler = useRef(onEvent);
 
   useEffect(() => {
@@ -53,9 +55,11 @@ export function useGameLive(
     };
 
     const refreshViewers = () => {
-      let count = 0;
-      for (const member of members.values()) if (member.userId !== selfId) count += 1;
-      setViewers(count);
+      // นับคน (ไม่ใช่แท็บ) — ผู้ใช้คนเดียวเปิดหลายแท็บก็นับครั้งเดียว
+      const ids = new Set<string>();
+      for (const member of members.values()) if (member.userId !== selfId) ids.add(member.userId);
+      setPresentIds([...ids]);
+      setViewers(ids.size);
     };
 
     const schedule = () => {
@@ -137,6 +141,7 @@ export function useGameLive(
           retry = 0;
           selfId = message.userId;
           members.clear();
+          setPresentIds([]);
           setViewers(0);
           setStatus("online");
           if (renewTimer !== null) clearTimeout(renewTimer);
@@ -186,8 +191,9 @@ export function useGameLive(
       clearTimers();
       drop(socket);
       setViewers(0);
+      setPresentIds([]);
     };
   }, [room, enabled]);
 
-  return { status, viewers };
+  return { status, viewers, presentIds };
 }

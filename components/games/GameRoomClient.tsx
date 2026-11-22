@@ -194,6 +194,13 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
 
   const meta = GAMES[view.game];
   const mySeat = view.mySeat;
+  // จำนวนคนดูสด ๆ จาก presence (ตัดผู้เล่นทั้งสองฝั่งออก) — ไม่ต้องรอ snapshot รอบถัดไป
+  const playerIds = new Set(
+    view.players.map((player) => (player.id === null ? null : String(player.id))).filter((id): id is string => id !== null),
+  );
+  const liveSpectators =
+    live.status === "online" ? live.presentIds.filter((id) => !playerIds.has(id)).length : null;
+  const spectatorCount = liveSpectators ?? view.spectators.length;
   const remaining = deadlineMs !== null ? Math.max(0, (deadlineMs - (tick + clockSkew)) / 1000) : null;
   const offerFromOther = view.drawOfferSeat !== null && view.drawOfferSeat !== mySeat;
   const offerMine = view.drawOfferSeat !== null && view.drawOfferSeat === mySeat;
@@ -418,7 +425,12 @@ export default function GameRoomClient({ roomId }: { roomId: number }) {
           <div className="card flex h-[320px] flex-col">
             <div className="flex items-center justify-between border-b border-white/8 px-3 py-2">
               <p className="text-xs font-semibold text-white">แชตในโต๊ะ</p>
-              <span className="text-[10px] text-slate-500">{view.spectators.length} คนดู</span>
+              <span
+                className="text-[10px] text-slate-500"
+                title={liveSpectators !== null ? "จำนวนคนดูจากการเชื่อมต่อเรียลไทม์" : "จำนวนคนดูจากข้อมูลห้องล่าสุด"}
+              >
+                {spectatorCount} คนดู
+              </span>
             </div>
             <div className="chat-scroll flex-1 space-y-1.5 overflow-y-auto px-3 py-2">
               {view.messages.length === 0 ? (
