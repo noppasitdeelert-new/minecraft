@@ -85,7 +85,7 @@ async function initialise(): Promise<D1Database> {
  * Schema version. Bump it whenever SCHEMA changes so existing databases run the
  * statements again; unchanged databases skip the whole block (one cheap query).
  */
-const SCHEMA_VERSION = "2026-11-21.4";
+const SCHEMA_VERSION = "2026-11-23.1";
 
 /** Columns added after the first release — existing databases need ALTER TABLE. */
 const ADDED_COLUMNS: Array<{ table: string; column: string; statement: string }> = [
@@ -661,6 +661,31 @@ CREATE TABLE IF NOT EXISTS game_stats (
   PRIMARY KEY (user_id, game)
 );
 CREATE INDEX IF NOT EXISTS idx_game_stats_rating ON game_stats(game, rating);
+
+CREATE TABLE IF NOT EXISTS lan_rooms (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  code         TEXT NOT NULL UNIQUE,
+  name         TEXT NOT NULL,
+  host_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  network      TEXT NOT NULL DEFAULT 'zerotier',
+  network_id   TEXT,
+  host_address TEXT,
+  port         INTEGER NOT NULL DEFAULT 25565,
+  mc_version   TEXT,
+  note         TEXT,
+  status       TEXT NOT NULL DEFAULT 'open',
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lan_rooms_status ON lan_rooms(status, id);
+
+CREATE TABLE IF NOT EXISTS lan_members (
+  room_id   INTEGER NOT NULL REFERENCES lan_rooms(id) ON DELETE CASCADE,
+  user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TEXT NOT NULL,
+  PRIMARY KEY (room_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lan_members_room ON lan_members(room_id);
 `;
 
 /* ------------------------------------------------------------------ */

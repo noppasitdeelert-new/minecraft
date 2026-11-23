@@ -1,7 +1,7 @@
 import { ApiError, fail, json, readJson } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { one } from "@/lib/db";
-import { createRealtimeTicket, LOBBY_ROOM, siteOrigin } from "@/lib/realtime";
+import { createRealtimeTicket, LAN_ROOM, LOBBY_ROOM, siteOrigin } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const sentOrigin = req.headers.get("origin");
     const origin = normalizeOrigin(sentOrigin) ?? (await siteOrigin(req));
 
-    if (room !== LOBBY_ROOM) {
+    if (room !== LOBBY_ROOM && room !== LAN_ROOM) {
       const match = /^game:(\d{1,10})$/.exec(room);
       if (!match) throw new ApiError(400, "ห้องเรียลไทม์ไม่ถูกต้อง");
       const found = await one<{ id: number }>("SELECT id FROM game_rooms WHERE id = ?", Number(match[1]));

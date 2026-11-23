@@ -16,6 +16,7 @@ type RealtimeBinding = { idFromName(name: string): unknown; get(id: unknown): Re
 type RealtimeEnv = { REALTIME?: RealtimeBinding; APP_ORIGIN?: string };
 
 export const LOBBY_ROOM = "games:lobby";
+export const LAN_ROOM = "lan:lobby";
 
 export function gameRoomName(roomId: number): string {
   return `game:${roomId}`;
@@ -110,4 +111,9 @@ export async function publishRoomPulse(roomId: number, pulse: RoomPulse = {}): P
 /** แจ้งล็อบบี้เมื่อมีห้องใหม่/มีคน join/ห้องจบ */
 export async function publishLobbyPulse(): Promise<void> {
   await publishRealtime(LOBBY_ROOM, "lobby", {});
+}
+
+/** แจ้งทุกคนในหน้าศูนย์นัดเล่น LAN ว่ามีห้องใหม่/มีคน join/ข้อมูลห้องเปลี่ยน */
+export async function publishLanPulse(): Promise<void> {
+  await publishRealtime(LAN_ROOM, "lan", {});
 }
